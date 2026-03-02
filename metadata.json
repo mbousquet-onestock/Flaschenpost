@@ -1,0 +1,5 @@
+{
+  "name": "OneStock Wave Orchestrator - flaschenpost v1",
+  "description": "An advanced order orchestration management platform for retail logistics, allowing users to select orders, define orchestration scenarios, simulate outcomes, and compare results for optimal fulfillment strategy selection.",
+  "requestFramePermissions": []
+}
