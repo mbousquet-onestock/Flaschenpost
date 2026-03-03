@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { OrchestrationConfig, OrderStatus, StockPointType, StockPointRank, ConsolidationMode } from '../types';
 import { MOCK_SUPPLIERS } from '../constants';
+import { GripVertical, Plus, ChevronDown, X } from 'lucide-react';
 
 interface OrchestrationScenariosProps {
   config: OrchestrationConfig;
@@ -9,6 +10,8 @@ interface OrchestrationScenariosProps {
 }
 
 export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ config, onChange }) => {
+  const [activeMenu, setActiveMenu] = useState<'status' | 'type' | 'rank' | 'suppliers' | null>(null);
+
   const toggleStatus = (status: OrderStatus) => {
     const newStatuses = config.statuses.includes(status)
       ? config.statuses.filter(s => s !== status)
@@ -24,6 +27,27 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
     onChange({ ...config, selectedSupplierIds: newSelected });
   };
 
+  const ConditionTag = ({ category, field, value, onEdit }: { category: string, field: string, value: string, onEdit: () => void }) => (
+    <div 
+      onClick={onEdit}
+      className="flex items-center gap-2 bg-[#E6F6F4] text-[#00A79D] px-3 py-1.5 rounded-md border border-[#D1EFEC] cursor-pointer hover:bg-[#D1EFEC] transition-colors group"
+    >
+      <GripVertical className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-opacity" />
+      <span className="text-[13px] font-medium">
+        {category} - <span className="text-[#00A79D]/80">{field}</span> in <span className="font-bold">{value}</span>
+      </span>
+    </div>
+  );
+
+  const AddButton = ({ onClick }: { onClick: () => void }) => (
+    <button 
+      onClick={onClick}
+      className="bg-white border border-slate-200 px-4 py-1.5 rounded-md font-bold text-slate-700 text-[13px] hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+    >
+      Add condition
+    </button>
+  );
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/30">
@@ -36,113 +60,180 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Order Status Selection */}
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/30">
-          <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-50 text-[#00A79D] rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-            </div>
-            Order Statuses to Process
-          </h3>
-          <div className="space-y-3">
-            {(['Placed', 'Out Of Stock', 'Supplier'] as OrderStatus[]).map(status => (
-              <label key={status} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                config.statuses.includes(status) ? 'border-[#00A79D] bg-emerald-50/50' : 'border-slate-100 hover:border-slate-200'
-              }`}>
-                <span className="font-bold text-slate-700">{status}</span>
-                <input 
-                  type="checkbox" 
-                  className="hidden" 
-                  checked={config.statuses.includes(status)}
-                  onChange={() => toggleStatus(status)}
-                />
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                  config.statuses.includes(status) ? 'bg-[#00A79D] border-[#00A79D]' : 'border-slate-300'
-                }`}>
-                  {config.statuses.includes(status) && <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+      <div className="space-y-8">
+        {/* Order Information Section */}
+        <div className="space-y-4">
+          <h3 className="text-base font-bold text-slate-700 px-1">Order information</h3>
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm relative">
+            <div className="flex flex-col gap-4">
+              {/* Row 1: Order Status */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative">
+                  <ConditionTag 
+                    category="Order information" 
+                    field="Status" 
+                    value={config.statuses.join(', ') || 'None'} 
+                    onEdit={() => setActiveMenu(activeMenu === 'status' ? null : 'status')}
+                  />
+                  {activeMenu === 'status' && (
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 p-4 animate-in zoom-in-95 duration-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Statuses</span>
+                        <button onClick={() => setActiveMenu(null)}><X className="w-4 h-4 text-slate-400 hover:text-slate-600" /></button>
+                      </div>
+                      <div className="space-y-2">
+                        {(['Placed', 'Out Of Stock', 'Supplier'] as OrderStatus[]).map(status => (
+                          <label key={status} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                            <input 
+                              type="checkbox" 
+                              checked={config.statuses.includes(status)}
+                              onChange={() => toggleStatus(status)}
+                              className="w-4 h-4 rounded border-slate-300 text-[#00A79D] focus:ring-[#00A79D]"
+                            />
+                            <span className="text-sm font-bold text-slate-700">{status}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </label>
-            ))}
+                <AddButton onClick={() => setActiveMenu('status')} />
+              </div>
+
+              {/* OR Row */}
+              <div className="flex items-center gap-4 mt-2">
+                <div className="bg-slate-50 text-slate-400 px-2 py-1 rounded text-[10px] font-bold border border-slate-100 uppercase tracking-tighter">OR</div>
+                <button className="bg-white border border-slate-200 px-4 py-1.5 rounded-md font-bold text-slate-700 text-[13px] hover:bg-slate-50 transition-all shadow-sm active:scale-95">
+                  Add condition
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Stock Point Configuration */}
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/30">
-          <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-            </div>
-            Stock Point Target
-          </h3>
-          <div className="space-y-6">
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Type of Stock Point</label>
-              <div className="grid grid-cols-2 gap-3">
-                {(['warehouse', 'supplier'] as StockPointType[]).map(type => (
-                  <button
-                    key={type}
-                    onClick={() => onChange({ ...config, stockPointType: type })}
-                    className={`p-4 rounded-2xl border-2 font-bold capitalize transition-all ${
-                      config.stockPointType === type ? 'border-[#00A79D] bg-emerald-50/50 text-[#00A79D]' : 'border-slate-100 text-slate-500 hover:border-slate-200'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Rank Priority</label>
-              <div className="grid grid-cols-3 gap-3">
-                {(['P1', 'P2', 'P3'] as StockPointRank[]).map(rank => (
-                  <button
-                    key={rank}
-                    onClick={() => onChange({ ...config, stockPointRank: rank })}
-                    className={`p-4 rounded-2xl border-2 font-bold transition-all ${
-                      config.stockPointRank === rank ? 'border-[#00A79D] bg-emerald-50/50 text-[#00A79D]' : 'border-slate-100 text-slate-500 hover:border-slate-200'
-                    }`}
-                  >
-                    {rank}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {config.stockPointType === 'supplier' && (
-              <div className="pt-4 border-t border-slate-100">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Specific Suppliers Selection</label>
-                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                  {MOCK_SUPPLIERS.map(supplier => (
-                    <label key={supplier.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                      (config.selectedSupplierIds || []).includes(supplier.id) ? 'border-[#00A79D] bg-emerald-50/50' : 'border-slate-100 hover:border-slate-200'
-                    }`}>
-                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                        (config.selectedSupplierIds || []).includes(supplier.id) ? 'bg-[#00A79D] border-[#00A79D]' : 'border-slate-300'
-                      }`}>
-                        {(config.selectedSupplierIds || []).includes(supplier.id) && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+        {/* Stock Point Section */}
+        <div className="space-y-4">
+          <h3 className="text-base font-bold text-slate-700 px-1">Stock Point</h3>
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm relative">
+            <div className="flex flex-col gap-4">
+              {/* Row 2: Stock Point Type */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative">
+                  <ConditionTag 
+                    category="Stock Point" 
+                    field="Type" 
+                    value={config.stockPointType} 
+                    onEdit={() => setActiveMenu(activeMenu === 'type' ? null : 'type')}
+                  />
+                  {activeMenu === 'type' && (
+                    <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 p-4 animate-in zoom-in-95 duration-200">
+                      <div className="space-y-1">
+                        {(['warehouse', 'supplier'] as StockPointType[]).map(type => (
+                          <button
+                            key={type}
+                            onClick={() => {
+                              onChange({ ...config, stockPointType: type });
+                              setActiveMenu(null);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-bold capitalize transition-colors ${
+                              config.stockPointType === type ? 'bg-emerald-50 text-[#00A79D]' : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        ))}
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-slate-700">{supplier.name}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{supplier.id}</span>
-                      </div>
-                    </label>
-                  ))}
+                    </div>
+                  )}
                 </div>
-                {(config.selectedSupplierIds || []).length > 0 && (
-                  <button 
-                    onClick={() => onChange({ ...config, selectedSupplierIds: [] })}
-                    className="mt-3 text-[10px] font-bold text-[#00A79D] uppercase tracking-widest hover:underline"
-                  >
-                    Clear selection
-                  </button>
-                )}
+                <AddButton onClick={() => setActiveMenu('type')} />
               </div>
-            )}
+
+              {/* Row 3: Stock Point Rank */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative">
+                  <ConditionTag 
+                    category="Stock Point" 
+                    field="Rank" 
+                    value={config.stockPointRank} 
+                    onEdit={() => setActiveMenu(activeMenu === 'rank' ? null : 'rank')}
+                  />
+                  {activeMenu === 'rank' && (
+                    <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 p-4 animate-in zoom-in-95 duration-200">
+                      <div className="space-y-1">
+                        {(['P1', 'P2', 'P3'] as StockPointRank[]).map(rank => (
+                          <button
+                            key={rank}
+                            onClick={() => {
+                              onChange({ ...config, stockPointRank: rank });
+                              setActiveMenu(null);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                              config.stockPointRank === rank ? 'bg-emerald-50 text-[#00A79D]' : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            {rank}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <AddButton onClick={() => setActiveMenu('rank')} />
+              </div>
+
+              {/* Optional Row 4: Suppliers */}
+              {config.stockPointType === 'supplier' && (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="relative">
+                    <ConditionTag 
+                      category="Stock Point" 
+                      field="Suppliers" 
+                      value={config.selectedSupplierIds?.length ? `${config.selectedSupplierIds.length} selected` : 'All'} 
+                      onEdit={() => setActiveMenu(activeMenu === 'suppliers' ? null : 'suppliers')}
+                    />
+                    {activeMenu === 'suppliers' && (
+                      <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 p-4 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Suppliers</span>
+                          <button onClick={() => onChange({ ...config, selectedSupplierIds: [] })} className="text-[10px] font-bold text-[#00A79D] hover:underline">Clear</button>
+                        </div>
+                        <div className="space-y-1 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                          {MOCK_SUPPLIERS.map(supplier => (
+                            <label key={supplier.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                              <input 
+                                type="checkbox" 
+                                checked={(config.selectedSupplierIds || []).includes(supplier.id)}
+                                onChange={() => toggleSupplier(supplier.id)}
+                                className="w-4 h-4 rounded border-slate-300 text-[#00A79D] focus:ring-[#00A79D]"
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold text-slate-700">{supplier.name}</span>
+                                <span className="text-[9px] text-slate-400 font-mono">{supplier.id}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <AddButton onClick={() => setActiveMenu('suppliers')} />
+                </div>
+              )}
+
+              {/* OR Row */}
+              <div className="flex items-center gap-4 mt-2">
+                <div className="bg-slate-50 text-slate-400 px-2 py-1 rounded text-[10px] font-bold border border-slate-100 uppercase tracking-tighter">OR</div>
+                <button className="bg-white border border-slate-200 px-4 py-1.5 rounded-md font-bold text-slate-700 text-[13px] hover:bg-slate-50 transition-all shadow-sm active:scale-95">
+                  Add condition
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Consolidation Mode */}
-        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/30">
+        {/* Consolidation Mode (Keep this as it's a different type of setting) */}
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/30">
           <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-3">
             <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
