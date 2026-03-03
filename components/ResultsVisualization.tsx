@@ -158,6 +158,9 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                 }, {} as Record<string, GroupedResult[]>)
               ).map(([supplierId, items]: [string, GroupedResult[]]) => {
                 const shippingFee = items.reduce((sum: number, i: GroupedResult) => sum + (i.shippingFee || 0), 0);
+                const totalQuantity = items.reduce((sum: number, i: GroupedResult) => sum + i.totalQuantity, 0);
+                const totalAmount = items.reduce((sum: number, i: GroupedResult) => sum + i.totalAmount, 0) + shippingFee;
+                const shippingPerUnit = totalQuantity > 0 ? shippingFee / totalQuantity : 0;
                 
                 return (
                   <React.Fragment key={supplierId}>
@@ -204,7 +207,13 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
                           Shipping Fee
                         </td>
-                        <td className="px-8 py-3"></td>
+                        <td className="px-8 py-3 font-black text-slate-500 text-[10px]">
+                          {shippingPerUnit > 0 && (
+                            <span className="bg-orange-100 px-2 py-0.5 rounded">
+                              {shippingPerUnit.toFixed(2)} € / unit
+                            </span>
+                          )}
+                        </td>
                         <td className="px-8 py-3"></td>
                         <td className="px-8 py-3 font-black">{shippingFee.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}</td>
                         <td className="px-8 py-3 text-right">
@@ -214,6 +223,23 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                         </td>
                       </tr>
                     )}
+                    {/* Supplier Summary Row */}
+                    <tr className="bg-slate-100/50 border-t-2 border-slate-200 font-black text-slate-900">
+                      <td className="px-8 py-4 text-[10px] uppercase tracking-widest text-slate-400">Total {items[0].supplierName}</td>
+                      <td className="px-8 py-4"></td>
+                      <td className="px-8 py-4">{totalQuantity}</td>
+                      <td className="px-8 py-4 text-xs text-slate-500 font-bold italic">
+                        {shippingFee > 0 ? `Incl. ${shippingPerUnit.toFixed(2)}€ ship/unit` : 'Franco Reached'}
+                      </td>
+                      <td className="px-8 py-4 text-[#00A79D] text-base">
+                        {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}
+                      </td>
+                      <td className="px-8 py-4 text-right">
+                        <span className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-tighter ${items[0].francoReached ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white'}`}>
+                          {items[0].francoReached ? 'Franco OK' : 'Below Franco'}
+                        </span>
+                      </td>
+                    </tr>
                   </React.Fragment>
                 );
               })}
