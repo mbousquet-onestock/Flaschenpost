@@ -32,6 +32,8 @@ export interface GroupedResult {
   shippingFee?: number;
   /** Set when the optimisation chose another supplier than the cheapest one for this SKU. */
   cheapest?: { supplierName: string; unitPrice: number };
+  /** Orders whose lines make up this purchase line. */
+  orderIds: string[];
 }
 
 export interface SimulationResult {
@@ -67,7 +69,11 @@ export function simulate(data: Dataset, config: OrchestrationConfig): Simulation
   });
 
   const skuTotals = new Map<string, number>();
-  lines.forEach((l) => skuTotals.set(l.sku, (skuTotals.get(l.sku) || 0) + l.quantity));
+  const ordersBySku = new Map<string, Set<string>>();
+  lines.forEach((l) => {
+    skuTotals.set(l.sku, (skuTotals.get(l.sku) || 0) + l.quantity);
+    ordersBySku.set(l.sku, (ordersBySku.get(l.sku) ?? new Set()).add(l.orderId));
+  });
 
   const selected = config.selectedSupplierIds || [];
   const suppliers = new Map(data.suppliers.map((s) => [s.id, s]));
@@ -229,6 +235,7 @@ export function simulate(data: Dataset, config: OrchestrationConfig): Simulation
           supplierName: supplier.name,
           supplierId,
           totalQuantity: skuTotals.get(sku)!,
+          orderIds: [...(ordersBySku.get(sku) ?? [])].sort(),
           unitPrice,
           totalAmount: unitPrice * skuTotals.get(sku)!,
           francoReached: b.francoReached,

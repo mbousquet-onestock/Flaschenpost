@@ -107,6 +107,9 @@ export const fr: Record<string, string> = {
   'Blocking mode is active: orders whose supplier does not reach the Franco are excluded.':
     'Mode bloquant actif : les commandes dont le fournisseur n’atteint pas le franco sont exclues.',
   'SKU / Product': 'SKU / Produit',
+  'Order {ids}': 'Commande {ids}',
+  'Orders {ids}': 'Commandes {ids}',
+  '(+{count})': '(+{count})',
   Quantity: 'Quantité',
   'Unit price': 'Prix unitaire',
   'Total amount': 'Montant total',

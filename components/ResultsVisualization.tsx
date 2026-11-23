@@ -114,7 +114,14 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                         <td className="os-body-l" style={{ whiteSpace: 'nowrap' }}>{idx === 0 ? r.supplierName : ''}</td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span className="os-body-m" style={{ color: reached ? 'var(--text-brand)' : undefined }}>{r.sku}</span>
+                            <span className="os-body-m">
+                              <span style={{ color: reached ? 'var(--text-brand)' : undefined }}>{r.sku}</span>
+                              <span className="t-secondary" title={r.orderIds.join(', ')}>
+                                {' · '}
+                                {t(r.orderIds.length > 1 ? 'Orders {ids}' : 'Order {ids}', { ids: r.orderIds.slice(0, 3).join(', ') })}
+                                {r.orderIds.length > 3 ? ' ' + t('(+{count})', { count: r.orderIds.length - 3 }) : ''}
+                              </span>
+                            </span>
                             <span style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.productName}</span>
                             {r.cheapest && (
                               <span className="os-body-s t-secondary">
