@@ -3,7 +3,7 @@
 //  - dynamic: OneStock API through the Vercel functions, settings and prices in the database.
 // VITE_DATA_MODE only sets the default mode of a site that has none saved.
 import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SCENARIOS, MOCK_SUPPLIERS } from '../constants';
-import type { Dataset, ItemRef, ItemWeight, NewPurchaseOrder, PurchaseOrder, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
+import type { Dataset, ItemRef, ItemWeight, OrderLine, NewPurchaseOrder, PurchaseOrder, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
 import { api } from './api';
 import type { HostContext } from './context';
 import { t } from './i18n';
@@ -96,9 +96,13 @@ export const staticSource: DataSource = {
     const s = store();
     const statuses = s.lineStatuses ?? STATIC_STATUSES;
     return {
-      lines: MOCK_ORDERS.map((o) => ({ ...o, status: s.lineStatusChanges?.[o.id] ?? o.status }))
+      lines: MOCK_ORDERS.map((o, i) => ({ ...o, i, status: s.lineStatusChanges?.[o.id] ?? o.status }))
         .filter((o) => statuses.includes(o.status))
-        .map((o) => ({ id: o.id, orderId: o.id, sku: o.sku, quantity: o.quantity, status: o.status, priority: o.priority, date: o.date, channel: o.channel, orderTypes: o.types, customer: `${o.client} <client${o.id.slice(4)}@example.com>` })),
+        .map((o) => ({
+          id: o.id, orderId: o.id, sku: o.sku, quantity: o.quantity, status: o.status, priority: o.priority, date: o.date,
+          channel: o.channel, orderTypes: o.types, customer: `${o.client} <client${o.id.slice(4)}@example.com>`,
+          info: sampleInfo(o.i),
+        })),
       items: await this.listItems(),
       suppliers: (await this.listSuppliers()).suppliers,
       prices: s.prices ?? defaultPrices(),
@@ -208,6 +212,17 @@ export const staticSource: DataSource = {
     return { purchaseOrders: created, target, updated: target ? lines.length : 0, failed: 0 };
   },
 };
+
+/** Sample "information" fields of the static data. */
+function sampleInfo(i: number): OrderLine['info'] {
+  return {
+    order: { gift: i % 4 === 0 ? 'yes' : 'no', priority_level: (i % 3) + 1 },
+    customer: { loyalty: ['gold', 'silver', 'none'][i % 3] },
+    item: { color: ['red', 'white', 'rose'][i % 3] },
+    destination: { country: i % 5 === 0 ? 'BE' : 'FR' },
+    carrier: { name: i % 2 ? 'chronopost' : 'colissimo', option: i % 2 ? '18' : 'standard' },
+  };
+}
 
 /* ------------------------------------------------------------------ dynamic ------------------------------------------------------------------ */
 

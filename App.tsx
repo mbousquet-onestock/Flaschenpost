@@ -9,7 +9,7 @@ import { OsAlert, OsButton, OsLoading, OsStepper, OsTabs } from './components/os
 import { Step, Scenario, OrchestrationConfig, Dataset } from './types';
 import { HostContext, resolveHostContext, setManualContext } from './services/context';
 import { createDataSource, DataMode, DEFAULT_MODE, loadSavedMode } from './services/dataSource';
-import { simulate, toPurchaseOrders } from './services/simulation';
+import { infoCatalog, simulate, toPurchaseOrders } from './services/simulation';
 import { PurchaseOrdersTab } from './components/PurchaseOrdersTab';
 import { date, money, t } from './services/i18n';
 
@@ -288,7 +288,8 @@ const App: React.FC = () => {
             (currentStep === Step.OrchestrationScenarios ? (
               <OrchestrationScenarios config={orchestrationConfig} onChange={setOrchestrationConfig} statusOptions={data!.statusOptions} suppliers={data!.suppliers}
                 channelOptions={salesChannelOptions(data!)}
-                typeOptions={[...new Set(data!.lines.flatMap((l) => l.orderTypes ?? []))].sort()} />
+                typeOptions={[...new Set(data!.lines.flatMap((l) => l.orderTypes ?? []))].sort()}
+                infoCatalog={infoCatalog(data!.lines)} />
             ) : (
               <ResultsVisualization strategyName={strategyName} config={orchestrationConfig} data={data!} onNext={launch} launching={launching} />
             ))}

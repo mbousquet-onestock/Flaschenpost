@@ -44,6 +44,8 @@ export interface OrchestrationConfig {
   customerQuery?: string;
   /** Item SKU or name contains one of these comma-separated texts; undefined = no condition. */
   itemQuery?: string;
+  /** Conditions on information fields, all to be met. */
+  infoConditions?: InfoCondition[];
 }
 
 /**
@@ -167,6 +169,24 @@ export interface OrderLine {
   orderTypes?: string[];
   /** Customer: "First Last <email>". */
   customer?: string;
+  /** Free "information" fields of the order, customer, order item, destination and carrier. */
+  info?: Partial<Record<InfoSource, Record<string, InfoValue>>>;
+}
+
+/** Where an information field is read. */
+export type InfoSource = 'order' | 'customer' | 'item' | 'destination' | 'carrier';
+export type InfoValue = string | number | boolean;
+export type InfoType = 'string' | 'number' | 'boolean';
+export type InfoOperator = 'in' | 'not_in' | 'contains' | 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'exists' | 'not_exists';
+
+/** Condition on an information field, e.g. order information "gift" in ["yes"]. */
+export interface InfoCondition {
+  id: string;
+  source: InfoSource;
+  field: string;
+  type: InfoType;
+  operator: InfoOperator;
+  values: string[];
 }
 
 export interface Dataset {

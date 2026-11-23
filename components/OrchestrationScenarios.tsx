@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { OrchestrationConfig, OrderDateFilter, OrderStatus, StockPointType, StockPointRank, ConsolidationMode, SupplierRef } from '../types';
+import { InfoCondition, InfoSource, OrchestrationConfig, OrderDateFilter, OrderStatus, StockPointType, StockPointRank, ConsolidationMode, SupplierRef } from '../types';
 import { OsButton, OsCheckbox, OsFloating, OsIcon, OsSwitch, OsTag } from './os';
 import { date as fmtDate, t } from '../services/i18n';
+import { InfoConditionEditor, infoConditionLabel, newInfoCondition } from './InfoConditionEditor';
 
 interface OrchestrationScenariosProps {
   config: OrchestrationConfig;
@@ -12,10 +13,13 @@ interface OrchestrationScenariosProps {
   /** Sales channels of the site (id + name) and order types found in the loaded order lines. */
   channelOptions: { id: string; name: string }[];
   typeOptions: string[];
+  /** Information keys and values found in the loaded orders, per source. */
+  infoCatalog: Record<InfoSource, Map<string, Set<string>>>;
 }
 
 type Condition = 'status' | 'date' | 'channel' | 'otype' | 'customer' | 'item' | 'type' | 'rank' | 'suppliers';
-type Menu = Condition | 'add-order' | 'add-stock' | null;
+/** Open floating menu: a condition, an add menu, or `info:<id>` for an information field condition. */
+type Menu = Condition | 'add-order' | 'add-stock' | `info:${string}` | null;
 
 const TYPES: { value: StockPointType; label: string }[] = [
   { value: 'warehouse', label: 'Warehouse' },
@@ -113,7 +117,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   </section>
 );
 
-export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ config, onChange, statusOptions, suppliers, channelOptions, typeOptions }) => {
+export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ config, onChange, statusOptions, suppliers, channelOptions, typeOptions, infoCatalog }) => {
   const [activeMenu, setActiveMenu] = useState<Menu>(null);
   const close = () => setActiveMenu(null);
   const toggle = (m: Exclude<Menu, null>) => setActiveMenu((cur) => (cur === m ? null : m));
@@ -203,16 +207,29 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
     </div>
   );
 
-  const addButton = (menu: 'add-order' | 'add-stock', options: Condition[]) => {
+  const addInfo = () => {
+    const c = newInfoCondition();
+    onChange({ ...config, infoConditions: [...(config.infoConditions ?? []), c] });
+    setActiveMenu(`info:${c.id}`);
+  };
+  const setInfo = (c: InfoCondition) => onChange({ ...config, infoConditions: (config.infoConditions ?? []).map((x) => (x.id === c.id ? c : x)) });
+  const removeInfo = (id: string) => {
+    const rest = (config.infoConditions ?? []).filter((x) => x.id !== id);
+    onChange({ ...config, infoConditions: rest.length ? rest : undefined });
+    close();
+  };
+
+  const addButton = (menu: 'add-order' | 'add-stock', options: Condition[], withInfo = false) => {
     const missing = options.filter((c) => !has[c]);
     return (
       <div style={{ position: 'relative' }}>
-        <OsButton kind="secondary" icon="add" disabled={!missing.length} onClick={() => toggle(menu)}>{t('Add condition')}</OsButton>
+        <OsButton kind="secondary" icon="add" disabled={!missing.length && !withInfo} onClick={() => toggle(menu)}>{t('Add condition')}</OsButton>
         {activeMenu === menu && (
           <OsFloating onClose={close}>
             {missing.map((c) => (
               <button key={c} type="button" className="os-opt" onClick={() => add(c)}>{t(LABELS[c])}</button>
             ))}
+            {withInfo && <button type="button" className="os-opt" onClick={addInfo}>{t('Information field')}</button>}
           </OsFloating>
         )}
       </div>
@@ -278,7 +295,26 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
             ), 360)}
           </div>
         )}
-        <div className="os-row">{addButton('add-order', ORDER_CONDITIONS)}</div>
+        {(config.infoConditions ?? []).map((c) => {
+          const label = infoConditionLabel(c);
+          const menu = `info:${c.id}` as const;
+          return (
+            <div className="os-row" key={c.id}>
+              <div style={{ position: 'relative' }}>
+                <OsTag draggable onClick={() => toggle(menu)} onClose={() => removeInfo(c.id)}>
+                  <span className="muted">{label.prefix} </span>
+                  {label.value}
+                </OsTag>
+                {activeMenu === menu && (
+                  <OsFloating onClose={close}>
+                    <InfoConditionEditor value={c} onChange={setInfo} catalog={infoCatalog} />
+                  </OsFloating>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div className="os-row">{addButton('add-order', ORDER_CONDITIONS, true)}</div>
         {!has.status && <p className="os-label-s t-secondary" style={{ margin: 0 }}>{t('No condition: order lines of every configured status are taken.')}</p>}
       </Section>
 
