@@ -78,7 +78,10 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
             Manage, edit or launch pre-configured fulfilment workflows.
           </p>
         </div>
-        <OsButton icon="add" onClick={onCreateNew}>New strategy</OsButton>
+        <div className="os-row">
+          <OsButton kind="secondary" icon="time">Execution history</OsButton>
+          <OsButton icon="add" onClick={onCreateNew}>New strategy</OsButton>
+        </div>
       </div>
 
       <div className="os-table-wrap">

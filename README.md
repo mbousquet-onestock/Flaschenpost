@@ -25,5 +25,5 @@ The UI follows the OneStock product design system (back-office):
 
 - `styles/onestock.css`: design tokens (colours, spacing, radii, Roboto type scale) and component styles.
 - `components/os/`: React versions of the `Os*` components used here (OsIcon, OsButton, OsBadge, OsTag, OsCheckbox, OsSwitch, OsSegmentedControl, OsAlert, OsStepper).
-- `components/Layout.tsx`: the mandatory app shell, `OsSideMenu` + `OsNavBar` + content on `surface-page-background`.
-- `public/icons/`, `public/logos/`: official OneStock icons and logo. Do not substitute another icon set.
+- `components/Layout.tsx`: content area only. The app runs as an extension inside the OneStock back-office, which already provides `OsSideMenu` and `OsNavBar`.
+- `public/icons/`: official OneStock icons. Do not substitute another icon set.

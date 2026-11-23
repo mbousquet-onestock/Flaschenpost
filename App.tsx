@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { OrchestrationScenarios } from './components/OrchestrationScenarios';
 import { ResultsVisualization } from './components/ResultsVisualization';
 import { StrategyDashboard } from './components/StrategyDashboard';
-import { OsAppLayout, OsNavBar } from './components/Layout';
+import { ExtensionLayout, PageHeader } from './components/Layout';
 import { OsButton, OsStepper } from './components/os';
 import { Step, Scenario, OrchestrationConfig } from './types';
 import { MOCK_SCENARIOS } from './constants';
@@ -46,21 +46,6 @@ const App: React.FC = () => {
 
   const inFlow = currentStep !== Step.StrategyManagement;
 
-  const nav = inFlow ? (
-    <OsNavBar
-      onBack={backToDashboard}
-      info={currentStep === Step.OrchestrationScenarios ? 'Draft' : undefined}
-      crumbs={[{ label: 'Wave strategies', onClick: backToDashboard }, { label: strategyName }]}
-    />
-  ) : (
-    <OsNavBar
-      crumbs={[{ label: 'Orchestration' }, { label: 'Wave strategies' }]}
-      end={
-        <OsButton kind="on-dark" icon="time">Execution history</OsButton>
-      }
-    />
-  );
-
   const footer = inFlow && (
     <div className="os-actionbar">
       <OsButton kind="secondary" icon="arrow-left" onClick={currentStep === Step.OrchestrationScenarios ? backToDashboard : prevStep}>
@@ -75,8 +60,15 @@ const App: React.FC = () => {
   );
 
   return (
-    <OsAppLayout active="Orchestration" nav={nav} footer={footer}>
+    <ExtensionLayout footer={footer}>
       <div className="os-col">
+        {inFlow && (
+          <PageHeader
+            title={strategyName}
+            onBack={backToDashboard}
+            badge={currentStep === Step.OrchestrationScenarios ? 'Draft' : undefined}
+          />
+        )}
         {inFlow && (
           <div className="os-card" style={{ padding: '12px 16px' }}>
             <OsStepper steps={STEPS} current={currentStep - 1} onStepClick={(i) => setCurrentStep((i + 1) as Step)} />
@@ -99,7 +91,7 @@ const App: React.FC = () => {
           <ResultsVisualization strategyName={strategyName} config={orchestrationConfig} onNext={backToDashboard} />
         )}
       </div>
-    </OsAppLayout>
+    </ExtensionLayout>
   );
 };
 
