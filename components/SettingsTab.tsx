@@ -34,7 +34,8 @@ export const SettingsTab: React.FC<{
   const [adminKey, setKey] = useState(getAdminKey());
   const [selectedMode, setSelectedMode] = useState<DataMode>(mode);
   const [env, setEnv] = useState(context?.env ?? 'qualif');
-  const [siteId, setSiteId] = useState(context?.siteId ?? '');
+  const urlSite = new URLSearchParams(window.location.search).get('site_id') ?? '';
+  const [siteId, setSiteId] = useState(context?.siteId ?? urlSite);
   const [apiUser, setApiUser] = useState('');
   const [password, setPassword] = useState('');
   const [statuses, setStatuses] = useState<string[]>([]);
@@ -62,7 +63,8 @@ export const SettingsTab: React.FC<{
 
   useEffect(() => {
     setEnv(context?.env ?? 'qualif');
-    setSiteId(context?.siteId ?? '');
+    setSiteId(context?.siteId ?? urlSite);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context]);
 
   useEffect(() => {
@@ -179,7 +181,7 @@ export const SettingsTab: React.FC<{
         </div>
 
         <div className="os-form">
-          <OsField label="Environment" htmlFor="st-env" hint={fromHost ? 'Provided by OneStock' : 'qualif, prod…'}>
+          <OsField label="Environment" htmlFor="st-env" hint={fromHost ? 'From the OneStock API URL' : 'qualif, prod…'}>
             <input id="st-env" className="os-input" list="st-envs" value={env} disabled={fromHost} onChange={(e) => setEnv(e.target.value)} />
             <datalist id="st-envs"><option value="qualif" /><option value="prod" /></datalist>
           </OsField>

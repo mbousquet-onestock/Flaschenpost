@@ -45,6 +45,11 @@ const App: React.FC = () => {
   useEffect(() => {
     resolveHostContext().then(async (ctx) => {
       setContext(ctx);
+      // First run: no environment known yet, show the settings so it can be entered.
+      if (!ctx) {
+        setShowSettings(true);
+        setTab('settings');
+      }
       setMode((ctx && (await loadSavedMode(ctx))) || DEFAULT_MODE);
     });
   }, []);

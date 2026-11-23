@@ -2,6 +2,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+      // OneStock UI extension handshake. Runs before the app bundle: OneStock fails the extension when
+      // "extension_ready" does not arrive within 20 s, or from an origin other than the configured URL.
+      // The host replies with { type: "onestock_data", data: { api_url, extension_signature, ... } },
+      // kept here until the app reads it (services/context.ts).
+      (function () {
+        if (window.parent === window) return;
+        var origin = '*';
+        try {
+          var parentUrl = new URLSearchParams(window.location.search).get('parent_url');
+          if (parentUrl) origin = new URL(parentUrl).origin;
+        } catch (e) { /* keep '*' */ }
+        var hs = (window.__onestockHandshake = { origin: origin, data: null });
+        window.addEventListener('message', function (e) {
+          if (e.source !== window.parent || (origin !== '*' && e.origin !== origin)) return;
+          if (!e.data || e.data.type !== 'onestock_data') return;
+          hs.data = e.data.data || {};
+          window.dispatchEvent(new Event('onestock-data'));
+        });
+        window.parent.postMessage({ type: 'extension_ready' }, origin);
+      })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OneStock Wave Orchestrator</title>
