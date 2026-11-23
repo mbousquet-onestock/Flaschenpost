@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Dataset, OrchestrationConfig } from '../types';
 import { GroupedResult, simulate } from '../services/simulation';
 import { OsAlert, OsBadge, OsButton, OsIcon } from './os';
-import { money, t } from '../services/i18n';
+import { money, num, t } from '../services/i18n';
 
 const eur = (n: number) => money(n);
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
@@ -82,6 +82,16 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                 const shippingPerUnit = totalQuantity > 0 ? shippingFee / totalQuantity : 0;
                 const reached = items[0].francoReached;
                 const noFranco = items[0].franco === null;
+                const ship = sim.shipping[supplierId];
+                const shipDetail = !ship
+                  ? ''
+                  : ship.mode === 'fixed'
+                    ? t('Fixed fee per order')
+                    : ship.mode === 'weight'
+                      ? t('{rate} / kg × {kg} kg', { rate: eur(ship.rate), kg: num(ship.basis) })
+                      : ship.mode === 'quantity'
+                        ? t('{rate} / unit × {units} units', { rate: eur(ship.rate), units: num(ship.basis) })
+                        : t('No shipping fee defined for this supplier');
 
                 return (
                   <React.Fragment key={supplierId}>
@@ -108,7 +118,7 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                         </td>
                       </tr>
                     ))}
-                    {shippingFee > 0 && (
+                    {ship && (
                       <tr className="fee">
                         <td />
                         <td>
@@ -116,15 +126,23 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                             <OsIcon icon="truck" size="s" />
                             <span className="os-body-l">{t('Shipping fee')}</span>
                           </span>
+                          <span className="os-body-s t-secondary">{shipDetail}</span>
+                          {ship.missingWeights.length > 0 && (
+                            <span className="os-body-s t-orange" style={{ display: 'block' }}>
+                              {t('No weight for {skus}: counted as 0 kg', { skus: ship.missingWeights.slice(0, 5).join(', ') + (ship.missingWeights.length > 5 ? '…' : '') })}
+                            </span>
+                          )}
                         </td>
                         <td className="r t-num t-secondary">{shippingPerUnit > 0 && t('{amount} / unit', { amount: eur(shippingPerUnit) })}</td>
                         <td />
                         <td className="r t-num">{eur(shippingFee)}</td>
-                        <td className="r"><OsBadge text={t('Fee applied')} color="orange" /></td>
+                        <td className="r">
+                          {ship.mode ? <OsBadge text={t('Fee applied')} color="orange" /> : <OsBadge text={t('Not defined')} color="grey" />}
+                        </td>
                       </tr>
                     )}
                     <tr className="subtotal">
-                      <td style={{ whiteSpace: 'nowrap' }}>Total {items[0].supplierName}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{t('Total {name}', { name: items[0].supplierName })}</td>
                       <td className="os-body-s t-secondary">
                         {shippingFee > 0 ? t('Incl. {amount} shipping per unit', { amount: eur(shippingPerUnit) }) : noFranco ? t('No franco defined') : reached ? t('Franco {amount} reached', { amount: eur(items[0].franco!) }) : t('Franco {amount}', { amount: eur(items[0].franco!) })}
                       </td>

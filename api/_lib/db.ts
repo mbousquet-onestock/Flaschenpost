@@ -33,6 +33,17 @@ export async function ready(): Promise<postgres.Sql> {
         primary key (env, site_id)
       )`;
     await db`alter table tenant_config add column if not exists data_mode text`;
+    await db`alter table supplier_terms add column if not exists shipping_mode text`;
+    await db`alter table supplier_terms add column if not exists shipping_amount numeric(14, 4)`;
+    await db`
+      create table if not exists item_weights (
+        env text not null,
+        site_id text not null,
+        item_id text not null,
+        weight_kg numeric(14, 4) not null check (weight_kg >= 0),
+        updated_at timestamptz not null default now(),
+        primary key (env, site_id, item_id)
+      )`;
     await db`
       create table if not exists suppliers (
         env text not null,

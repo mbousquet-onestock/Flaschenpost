@@ -94,6 +94,8 @@ export interface SupplierRef {
   /** Free shipping threshold, null when none is defined. */
   franco: number | null;
   rank?: StockPointRank;
+  /** Shipping fee charged by the supplier when the franco is not reached; null when none is defined. */
+  shipping?: ShippingFee | null;
   /** onestock: supplier stock point of OneStock; local: supplier entered in the app (manual or Excel import). */
   source?: 'onestock' | 'local';
 }
@@ -111,9 +113,23 @@ export interface PriceTier {
   unitPrice: number;
 }
 
+/** Shipping fee of a supplier: a fixed amount per order, an amount per kg, or an amount per unit ordered. */
+export type ShippingMode = 'fixed' | 'weight' | 'quantity';
+export interface ShippingFee {
+  mode: ShippingMode;
+  /** € per order (fixed), € per kg (weight) or € per unit (quantity). */
+  amount: number;
+}
+
 export interface SupplierTerm {
   supplierId: string;
   franco: number | null;
+  shipping?: ShippingFee | null;
+}
+
+export interface ItemWeight {
+  itemId: string;
+  weightKg: number | null;
 }
 
 export interface OrderLine {
@@ -132,6 +148,8 @@ export interface Dataset {
   prices: PriceTier[];
   /** Order line statuses offered in the execution scenario. */
   statusOptions: string[];
+  /** Item weights in kg, for shipping fees per kg. */
+  weights?: ItemWeight[];
   truncated?: boolean;
 }
 

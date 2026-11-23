@@ -1,7 +1,7 @@
 // Supplier purchase prices: degressive price tiers per item and franco per supplier.
 // Manual entry, or Excel import (with a downloadable template).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ItemRef, PriceTier, SupplierRef, SupplierTerm } from '../types';
+import type { ItemRef, ItemWeight, PriceTier, ShippingMode, SupplierRef, SupplierTerm } from '../types';
 import type { DataSource } from '../services/dataSource';
 import { downloadWorkbook, parseImport, ParsedImport } from '../services/excel';
 import { OsAlert, OsBadge, OsButton, OsCheckbox, OsField, OsIcon, OsLoading } from './os';
@@ -24,6 +24,9 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
   const [supplierId, setSupplierId] = useState('');
   const [filter, setFilter] = useState('');
   const [franco, setFranco] = useState('');
+  const [shipMode, setShipMode] = useState<ShippingMode | ''>('');
+  const [shipAmount, setShipAmount] = useState('');
+  const [weights, setWeights] = useState<ItemWeight[]>([]);
   const [draft, setDraft] = useState({ itemId: '', minQty: '1', unitPrice: '' });
   const [draftError, setDraftError] = useState<string | null>(null);
   const [parsed, setParsed] = useState<(ParsedImport & { fileName: string }) | null>(null);
@@ -42,6 +45,7 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
       setSupplierWarning(list.warning);
       setPrices(p.prices);
       setTerms(p.terms);
+      setWeights(p.weights);
       setItems(it);
       setSupplierId((cur) => (cur && s.some((x) => x.id === cur) ? cur : s[0]?.id ?? ''));
     } catch (e) {
@@ -61,11 +65,14 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
     prices.forEach((p) => m.set(p.supplierId, (m.get(p.supplierId) || 0) + 1));
     return m;
   }, [prices]);
-  const supplierFranco = terms.find((t) => t.supplierId === supplierId)?.franco ?? null;
+  const term = terms.find((x) => x.supplierId === supplierId);
+  const weightOf = useMemo(() => new Map(weights.map((w) => [w.itemId, w.weightKg])), [weights]);
 
   useEffect(() => {
-    setFranco(supplierFranco === null ? '' : String(supplierFranco));
-  }, [supplierId, supplierFranco]);
+    setFranco(term?.franco == null ? '' : String(term.franco));
+    setShipMode(term?.shipping?.mode ?? '');
+    setShipAmount(term?.shipping ? String(term.shipping.amount) : '');
+  }, [supplierId, term]);
 
   const rows = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -91,10 +98,20 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
     }
   };
 
-  const saveFranco = () => {
+  /** Saves the franco and the shipping fee of the selected supplier together. */
+  const saveTerms = () => {
     const v = franco.trim() === '' ? null : toNum(franco);
     if (v === undefined || (v !== null && v < 0)) return setError(t('Franco must be a positive amount or empty.'));
-    run(() => source.savePrices({ terms: [{ supplierId, franco: v }] }), t('Franco saved.'));
+    const amount = toNum(shipAmount);
+    if (shipMode && (amount === undefined || amount < 0)) return setError(t('Enter a valid shipping fee amount.'));
+    const shipping = shipMode ? { mode: shipMode, amount: amount! } : null;
+    run(() => source.savePrices({ terms: [{ supplierId, franco: v, shipping }] }), t('Franco and shipping fee saved.'));
+  };
+
+  const updateWeight = (itemId: string, value: string) => {
+    const weightKg = value.trim() === '' ? null : toNum(value);
+    if (weightKg === undefined || (weightKg !== null && weightKg < 0) || weightKg === (weightOf.get(itemId) ?? null)) return;
+    run(() => source.savePrices({ weights: [{ itemId, weightKg }] }));
   };
 
   const addTier = () => {
@@ -154,7 +171,9 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
     const summary = t('{prices} price tier(s) and {terms} franco value(s) imported.', { prices: parsed.prices.length, terms: parsed.terms.length });
     run(async () => {
       if (parsed.newSuppliers.length) await source.saveSuppliers(parsed.newSuppliers);
-      await source.savePrices({ prices: parsed.prices, terms: parsed.terms, replaceSuppliers });
+      // Keep the stored shipping fee of a supplier when the file gives only its franco.
+      const merged = parsed.terms.map((x) => (x.shipping === undefined ? { ...x, shipping: terms.find((y) => y.supplierId === x.supplierId)?.shipping ?? null } : x));
+      await source.savePrices({ prices: parsed.prices, terms: merged, weights: parsed.weights, replaceSuppliers });
       setParsed(null);
     }, summary);
   };
@@ -178,7 +197,7 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
           <OsButton kind="secondary" icon="download" onClick={() => downloadWorkbook('supplier-prices-template.xlsx', suppliers, items)}>
             {t('Download template')}
           </OsButton>
-          <OsButton kind="secondary" icon="download" disabled={!prices.length} onClick={() => downloadWorkbook('supplier-prices.xlsx', suppliers, items, prices, terms)}>
+          <OsButton kind="secondary" icon="download" disabled={!prices.length} onClick={() => downloadWorkbook('supplier-prices.xlsx', suppliers, items, prices, terms, weights)}>
             {t('Export')}
           </OsButton>
           <OsButton icon="file" onClick={() => fileRef.current?.click()} disabled={busy}>{t('Import Excel')}</OsButton>
@@ -256,17 +275,37 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
             {selected?.source === 'local' && (
               <OsButton kind="tertiary" color="red" icon="trash" disabled={busy} onClick={() => removeSupplier(selected)}>{t('Delete supplier')}</OsButton>
             )}
-            <OsField label={t('Franco (€)')} htmlFor="pr-franco">
-              <div className="os-row" style={{ flexWrap: 'nowrap' }}>
-                <input id="pr-franco" className="os-input num" style={{ width: 140 }} inputMode="decimal" placeholder={t('None')} value={franco} onChange={(e) => setFranco(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveFranco()} />
-                <OsButton kind="secondary" icon="save" disabled={busy} onClick={saveFranco}>{t('Save')}</OsButton>
-              </div>
-            </OsField>
             <div style={{ flex: 1 }} />
             <OsField label={t('Search')} htmlFor="pr-filter">
               <input id="pr-filter" className="os-input" style={{ width: 220 }} placeholder={t('Item ID or name')} value={filter} onChange={(e) => setFilter(e.target.value)} />
             </OsField>
           </div>
+
+          <form
+            className="os-row"
+            style={{ alignItems: 'flex-start', gap: 12, padding: 16, borderBottom: '1px solid var(--border-primary)' }}
+            onSubmit={(e) => { e.preventDefault(); saveTerms(); }}
+            aria-label={t('Franco and shipping fee')}
+          >
+            <OsField label={t('Franco (€)')} htmlFor="pr-franco" hint={t('Order amount from which shipping is free')}>
+              <input id="pr-franco" className="os-input num" style={{ width: 140 }} inputMode="decimal" placeholder={t('None')} value={franco} onChange={(e) => setFranco(e.target.value)} />
+            </OsField>
+            <OsField label={t('Shipping fee if the franco is not reached')} htmlFor="pr-ship-mode">
+              <select id="pr-ship-mode" className="os-input" style={{ width: 240 }} value={shipMode} onChange={(e) => setShipMode(e.target.value as ShippingMode | '')}>
+                <option value="">{t('No shipping fee')}</option>
+                <option value="fixed">{t('Fixed amount per order')}</option>
+                <option value="weight">{t('Amount per kg')}</option>
+                <option value="quantity">{t('Amount per unit ordered')}</option>
+              </select>
+            </OsField>
+            {shipMode && (
+              <OsField label={shipMode === 'fixed' ? t('Amount (€)') : shipMode === 'weight' ? t('Amount (€ / kg)') : t('Amount (€ / unit)')} htmlFor="pr-ship-amount"
+                hint={shipMode === 'weight' ? t('Uses the item weights below') : undefined}>
+                <input id="pr-ship-amount" className="os-input num" style={{ width: 140 }} inputMode="decimal" value={shipAmount} onChange={(e) => setShipAmount(e.target.value)} required />
+              </OsField>
+            )}
+            <div style={{ paddingTop: 21 }}><OsButton type="submit" kind="secondary" icon="save" disabled={busy}>{t('Save')}</OsButton></div>
+          </form>
 
           <div className="os-table-wrap">
             <table className="os-table">
@@ -274,6 +313,7 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
                 <tr>
                   <th>{t('Item')}</th>
                   <th>{t('Name')}</th>
+                  <th className="r">{t('Weight (kg)')}</th>
                   <th className="r">{t('From quantity')}</th>
                   <th className="r">{t('Unit price (€)')}</th>
                   <th className="r" style={{ width: 60 }} aria-label={t('Actions')} />
@@ -286,6 +326,21 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
                     <tr key={`${p.itemId}|${p.minQty}|${p.unitPrice}`}>
                       <td className="os-body-l">{first ? p.itemId : ''}</td>
                       <td>{first ? itemName.get(p.itemId) ?? <span className="t-secondary">{t('Unknown item')}</span> : ''}</td>
+                      <td className="r">
+                        {first && (
+                          <input
+                            key={`w-${p.itemId}-${weightOf.get(p.itemId) ?? ''}`}
+                            className="os-input num"
+                            style={{ width: 90, display: 'inline-block' }}
+                            aria-label={t('Weight of {item} in kg', { item: p.itemId })}
+                            defaultValue={weightOf.get(p.itemId) == null ? '' : String(weightOf.get(p.itemId))}
+                            placeholder="—"
+                            inputMode="decimal"
+                            onBlur={(e) => updateWeight(p.itemId, e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                          />
+                        )}
+                      </td>
                       <td className="r t-num">{p.minQty === 1 ? <OsBadge text={t('Base price')} color="grey" /> : `≥ ${p.minQty}`}</td>
                       <td className="r">
                         <input
@@ -306,10 +361,10 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
                   );
                 })}
                 {rows.length === 0 && (
-                  <tr><td colSpan={5} className="os-empty">{filter ? t('No price matches the search.') : t('No price for this supplier yet.')}</td></tr>
+                  <tr><td colSpan={6} className="os-empty">{filter ? t('No price matches the search.') : t('No price for this supplier yet.')}</td></tr>
                 )}
                 <tr className="detail">
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <div className="os-row" style={{ alignItems: 'flex-end', gap: 12 }}>
                       <OsField label={t('Item')} htmlFor="pr-item">
                         <input id="pr-item" className="os-input" style={{ width: 260 }} list="pr-items" placeholder={t('Item ID')} value={draft.itemId} onChange={(e) => setDraft({ ...draft, itemId: e.target.value })} />
@@ -331,9 +386,6 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
               </tbody>
             </table>
           </div>
-          {supplierFranco !== null && (
-            <p className="os-label-s t-secondary" style={{ margin: 0, padding: '12px 16px' }}>{t('Franco: {amount}', { amount: eur(supplierFranco) })}</p>
-          )}
         </section>
       )}
     </div>

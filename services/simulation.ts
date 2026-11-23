@@ -1,7 +1,20 @@
 // Consolidation simulation: groups the selected order lines by SKU and assigns each SKU to a supplier
-// using the purchase price tiers and the franco of each supplier.
-import { SHIPPING_FEE } from '../constants';
-import type { Dataset, OrchestrationConfig, PriceTier } from '../types';
+// using the purchase price tiers and the franco of each supplier. When a supplier's franco is not reached,
+// its shipping fee is added: a fixed amount, an amount per kg (item weights) or an amount per unit.
+import type { Dataset, OrchestrationConfig, PriceTier, ShippingMode } from '../types';
+
+/** Shipping fee of a supplier whose franco is not reached. */
+export interface SupplierShipping {
+  fee: number;
+  /** null when the supplier has no shipping fee defined. */
+  mode: ShippingMode | null;
+  /** € per order, per kg or per unit. */
+  rate: number;
+  /** Units (quantity mode) or kg (weight mode) the rate applies to. */
+  basis: number;
+  /** Items without a weight, counted as 0 kg (weight mode). */
+  missingWeights: string[];
+}
 
 export interface GroupedResult {
   sku: string;
@@ -24,6 +37,8 @@ export interface SimulationResult {
   skuCount: number;
   unpricedSkus: string[];
   totalPurchaseAmount: number;
+  /** Per supplier whose franco is not reached (and orders not blocked). */
+  shipping: Record<string, SupplierShipping>;
 }
 
 /** Unit price for a quantity: the tier with the highest minimum quantity reached, else the lowest tier. */
@@ -86,14 +101,23 @@ export function simulate(data: Dataset, config: OrchestrationConfig): Simulation
     groups.set(supplier.id, list);
   });
 
+  const weights = new Map((data.weights ?? []).filter((w) => w.weightKg !== null).map((w) => [w.itemId, w.weightKg as number]));
   const results: GroupedResult[] = [];
-  groups.forEach((items) => {
+  const shipping: Record<string, SupplierShipping> = {};
+  groups.forEach((items, supplierId) => {
     const total = items.reduce((s, i) => s + i.totalAmount, 0);
     const francoReached = items[0].franco === null || total >= items[0].franco;
-    items.forEach((item, idx) => {
-      const shippingFee = !francoReached && idx === 0 && !config.blockIfFrancoNotMet ? SHIPPING_FEE : 0;
-      results.push({ ...item, francoReached, shippingFee });
-    });
+    let fee = 0;
+    if (!francoReached && !config.blockIfFrancoNotMet) {
+      const rule = suppliers.get(supplierId)?.shipping ?? null;
+      const units = items.reduce((s, i) => s + i.totalQuantity, 0);
+      const missingWeights = rule?.mode === 'weight' ? items.filter((i) => !weights.has(i.sku)).map((i) => i.sku) : [];
+      const kg = items.reduce((s, i) => s + i.totalQuantity * (weights.get(i.sku) ?? 0), 0);
+      const basis = rule?.mode === 'weight' ? kg : rule?.mode === 'quantity' ? units : 1;
+      fee = rule ? Math.round(rule.amount * basis * 100) / 100 : 0;
+      shipping[supplierId] = { fee, mode: rule?.mode ?? null, rate: rule?.amount ?? 0, basis: Math.round(basis * 1000) / 1000, missingWeights };
+    }
+    items.forEach((item, idx) => results.push({ ...item, francoReached, shippingFee: idx === 0 ? fee : 0 }));
   });
   results.sort((a, b) => a.supplierName.localeCompare(b.supplierName) || a.sku.localeCompare(b.sku));
 
@@ -110,5 +134,6 @@ export function simulate(data: Dataset, config: OrchestrationConfig): Simulation
     skuCount: skuTotals.size,
     unpricedSkus,
     totalPurchaseAmount,
+    shipping,
   };
 }

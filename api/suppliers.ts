@@ -1,6 +1,6 @@
 // Suppliers of a site: supplier stock points of OneStock (classification endpoint_type = configured type)
 // plus suppliers entered in the app (manual entry or Excel import), each with its franco.
-// GET    /api/suppliers          → { suppliers: [{ id, name, franco, source }], warning? }
+// GET    /api/suppliers          → { suppliers: [{ id, name, franco, shipping, source }], warning? }
 // POST   /api/suppliers          → create or rename local suppliers { suppliers: [{ id, name }] }
 // DELETE /api/suppliers?id=      → delete a local supplier with its prices and franco
 import { getConfig, ready } from './_lib/db.js';
@@ -37,9 +37,17 @@ export const GET = handle(async (req) => {
 
   const local = await db<{ id: string; name: string }[]>`
     select id, name from suppliers where env = ${t.env} and site_id = ${t.siteId} order by name`;
-  const terms = await db<{ supplier_id: string; franco: string | null }[]>`
-    select supplier_id, franco from supplier_terms where env = ${t.env} and site_id = ${t.siteId}`;
-  const franco = new Map(terms.map((r) => [r.supplier_id, r.franco === null ? null : Number(r.franco)]));
+  const terms = await db<{ supplier_id: string; franco: string | null; shipping_mode: string | null; shipping_amount: string | null }[]>`
+    select supplier_id, franco, shipping_mode, shipping_amount from supplier_terms where env = ${t.env} and site_id = ${t.siteId}`;
+  const byId = new Map(
+    terms.map((r) => [
+      r.supplier_id,
+      {
+        franco: r.franco === null ? null : Number(r.franco),
+        shipping: r.shipping_mode && r.shipping_amount !== null ? { mode: r.shipping_mode, amount: Number(r.shipping_amount) } : null,
+      },
+    ]),
+  );
 
   const seen = new Set<string>();
   const suppliers = [
@@ -47,7 +55,7 @@ export const GET = handle(async (req) => {
     ...local.map((l) => ({ id: l.id, name: l.name, source: 'local' as const })),
   ]
     .filter((s) => !seen.has(s.id) && seen.add(s.id))
-    .map((s) => ({ ...s, franco: franco.get(s.id) ?? null }));
+    .map((s) => ({ ...s, franco: byId.get(s.id)?.franco ?? null, shipping: byId.get(s.id)?.shipping ?? null }));
   return json({ suppliers, ...(warning ? { warning } : {}) });
 });
 

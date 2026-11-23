@@ -3,7 +3,7 @@
 //  - dynamic: OneStock API through the Vercel functions, settings and prices in the database.
 // VITE_DATA_MODE only sets the default mode of a site that has none saved.
 import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SCENARIOS, MOCK_SUPPLIERS } from '../constants';
-import type { Dataset, ItemRef, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
+import type { Dataset, ItemRef, ItemWeight, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
 import { api } from './api';
 import type { HostContext } from './context';
 import { t } from './i18n';
@@ -12,7 +12,8 @@ export type DataMode = 'static' | 'dynamic';
 export const DEFAULT_MODE: DataMode = import.meta.env.VITE_DATA_MODE === 'dynamic' ? 'dynamic' : 'static';
 
 export type SupplierList = { suppliers: SupplierRef[]; warning?: string };
-export type PricesPayload = { prices?: PriceTier[]; terms?: SupplierTerm[]; replaceSuppliers?: string[] };
+export type PricesPayload = { prices?: PriceTier[]; terms?: SupplierTerm[]; weights?: ItemWeight[]; replaceSuppliers?: string[] };
+export type PricesData = { prices: PriceTier[]; terms: SupplierTerm[]; weights: ItemWeight[] };
 
 export interface DataSource {
   mode: DataMode;
@@ -25,7 +26,7 @@ export interface DataSource {
   /** Deletes a supplier entered in the app, with its prices and franco. */
   deleteSupplier(id: string): Promise<void>;
   listItems(): Promise<ItemRef[]>;
-  getPrices(): Promise<{ prices: PriceTier[]; terms: SupplierTerm[] }>;
+  getPrices(): Promise<PricesData>;
   savePrices(p: PricesPayload): Promise<void>;
   deletePrice(supplierId: string, itemId: string, minQty?: number): Promise<void>;
   getSettings(): Promise<Settings>;
@@ -42,7 +43,7 @@ export interface DataSource {
 const STATIC_KEY = 'wave-orchestrator.static-data';
 const STATIC_STATUSES = ['Placed', 'Out Of Stock', 'Supplier'];
 
-type StaticStore = { prices?: PriceTier[]; terms?: SupplierTerm[]; lineStatuses?: string[]; strategies?: Scenario[]; localSuppliers?: { id: string; name: string }[] };
+type StaticStore = { prices?: PriceTier[]; terms?: SupplierTerm[]; weights?: ItemWeight[]; lineStatuses?: string[]; strategies?: Scenario[]; localSuppliers?: { id: string; name: string }[] };
 
 function readStore(): StaticStore {
   try {
@@ -70,7 +71,10 @@ const save = (s: StaticStore) => {
 const round = (n: number) => Math.round(n * 100) / 100;
 const defaultPrices = (): PriceTier[] =>
   MOCK_PRODUCTS.flatMap((p) => p.prices.map((t) => ({ supplierId: p.supplierId, itemId: p.sku, minQty: t.quantity, unitPrice: round(t.price) })));
-const defaultTerms = (): SupplierTerm[] => MOCK_SUPPLIERS.map((s) => ({ supplierId: s.id, franco: round(s.franco) }));
+const defaultTerms = (): SupplierTerm[] =>
+  MOCK_SUPPLIERS.map((s) => ({ supplierId: s.id, franco: round(s.franco), shipping: { mode: 'fixed' as const, amount: 80 } }));
+/** Sample bottle weights between 1.2 and 1.6 kg, stable per SKU. */
+const defaultWeights = (): ItemWeight[] => MOCK_PRODUCTS.map((p, i) => ({ itemId: p.sku, weightKg: round(1.2 + ((i * 7) % 5) / 10) }));
 
 export const staticSource: DataSource = {
   mode: 'static',
@@ -85,16 +89,18 @@ export const staticSource: DataSource = {
       items: await this.listItems(),
       suppliers: (await this.listSuppliers()).suppliers,
       prices: s.prices ?? defaultPrices(),
+      weights: s.weights ?? defaultWeights(),
       statusOptions: statuses,
     };
   },
   async listSuppliers() {
-    const terms = new Map((store().terms ?? defaultTerms()).map((x) => [x.supplierId, x.franco]));
-    const franco = (id: string) => (terms.has(id) ? terms.get(id)! : null);
-    const sample = MOCK_SUPPLIERS.map((s) => ({ id: s.id, name: s.name, rank: s.rank, franco: franco(s.id), source: 'onestock' as const }));
+    const terms = new Map((store().terms ?? defaultTerms()).map((x) => [x.supplierId, x]));
+    const franco = (id: string) => terms.get(id)?.franco ?? null;
+    const shipping = (id: string) => terms.get(id)?.shipping ?? null;
+    const sample = MOCK_SUPPLIERS.map((s) => ({ id: s.id, name: s.name, rank: s.rank, franco: franco(s.id), shipping: shipping(s.id), source: 'onestock' as const }));
     const local = (store().localSuppliers ?? [])
       .filter((l) => !sample.some((s) => s.id === l.id))
-      .map((l) => ({ id: l.id, name: l.name, franco: franco(l.id), source: 'local' as const }));
+      .map((l) => ({ id: l.id, name: l.name, franco: franco(l.id), shipping: shipping(l.id), source: 'local' as const }));
     return { suppliers: [...sample, ...local] };
   },
   async saveSuppliers(list) {
@@ -116,16 +122,18 @@ export const staticSource: DataSource = {
   },
   async getPrices() {
     const s = store();
-    return { prices: s.prices ?? defaultPrices(), terms: s.terms ?? defaultTerms() };
+    return { prices: s.prices ?? defaultPrices(), terms: s.terms ?? defaultTerms(), weights: s.weights ?? defaultWeights() };
   },
-  async savePrices({ prices = [], terms = [], replaceSuppliers = [] }) {
+  async savePrices({ prices = [], terms = [], weights = [], replaceSuppliers = [] }) {
     const s = store();
     const key = (p: PriceTier) => `${p.supplierId}|${p.itemId}|${p.minQty}`;
     const next = new Map((s.prices ?? defaultPrices()).filter((p) => !replaceSuppliers.includes(p.supplierId)).map((p) => [key(p), p]));
     prices.forEach((p) => next.set(key(p), p));
     const nextTerms = new Map((s.terms ?? defaultTerms()).map((t) => [t.supplierId, t]));
     terms.forEach((t) => nextTerms.set(t.supplierId, t));
-    save({ ...s, prices: [...next.values()], terms: [...nextTerms.values()] });
+    const nextWeights = new Map((s.weights ?? defaultWeights()).map((w) => [w.itemId, w]));
+    weights.forEach((w) => (w.weightKg === null ? nextWeights.delete(w.itemId) : nextWeights.set(w.itemId, w)));
+    save({ ...s, prices: [...next.values()], terms: [...nextTerms.values()], weights: [...nextWeights.values()] });
   },
   async deletePrice(supplierId, itemId, minQty) {
     const s = store();
@@ -176,7 +184,7 @@ function dynamicSource(ctx: HostContext): DataSource {
         source.getSettings(),
         source.listItems().catch(() => [] as ItemRef[]),
       ]);
-      return { lines: orders.lines, truncated: orders.truncated, suppliers, prices: prices.prices, items, statusOptions: settings.lineStatuses };
+      return { lines: orders.lines, truncated: orders.truncated, suppliers, prices: prices.prices, weights: prices.weights, items, statusOptions: settings.lineStatuses };
     },
     async listSuppliers() {
       return api<SupplierList>(ctx, 'suppliers');
@@ -203,7 +211,7 @@ function dynamicSource(ctx: HostContext): DataSource {
       return itemsCache;
     },
     async getPrices() {
-      return api<{ prices: PriceTier[]; terms: SupplierTerm[] }>(ctx, 'prices');
+      return api<PricesData>(ctx, 'prices');
     },
     async savePrices(p) {
       await api(ctx, 'prices', { method: 'PUT', body: p });
