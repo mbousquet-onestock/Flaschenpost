@@ -326,3 +326,27 @@ button { background: none; border: 0; padding: 0; margin: 0; cursor: pointer; te
 @media (max-width: 1023px) { .os-actionbar { padding: 12px 16px; } }
 
 .os-empty { padding: 48px 16px; text-align: center; color: var(--text-secondary); }
+
+/* ---------- OsTabs ---------- */
+.os-tabs { display: flex; flex-direction: column; gap: 8px; }
+.os-tabs-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.os-tab { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 8px 16px; border-radius: var(--radius-m);
+  font: 500 14px/1 var(--font-family); color: var(--text-placeholder); white-space: nowrap; }
+.os-tab:hover { background: var(--surface-hover-transparent); }
+.os-tab.active, .os-tab.active:hover { background: var(--surface-brand-transparent); color: var(--text-brand); }
+.os-divider { height: 1px; background: var(--border-primary); border: 0; margin: 0; }
+
+/* ---------- OsSelect (native) ---------- */
+select.os-input { appearance: none; -webkit-appearance: none; padding-right: 36px; cursor: pointer;
+  background: var(--surface-primary) url(/icons/chevron-down.svg) no-repeat right 8px center / 18px; }
+
+/* ---------- Forms ---------- */
+.os-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; align-items: end; }
+.os-hint { font: 400 12px/1.4 var(--font-family); color: var(--text-secondary); }
+.os-hint.error { color: var(--text-red); }
+.os-input.num { text-align: right; font-variant-numeric: tabular-nums; }
+.os-table td .os-input { height: 32px; }
+.os-loading { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); padding: 24px 16px; }
+.os-kv { display: grid; grid-template-columns: max-content 1fr; gap: 8px 24px; font: 400 14px/1.4 var(--font-family); }
+.os-kv dt { color: var(--text-secondary); }
+.os-kv dd { margin: 0; }

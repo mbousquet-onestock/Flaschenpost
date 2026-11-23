@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { OrchestrationConfig, OrderStatus, StockPointType, StockPointRank, ConsolidationMode } from '../types';
-import { MOCK_SUPPLIERS } from '../constants';
+import { OrchestrationConfig, OrderStatus, StockPointType, StockPointRank, ConsolidationMode, SupplierRef } from '../types';
 import { OsBadge, OsButton, OsCheckbox, OsFloating, OsIcon, OsSwitch, OsTag } from './os';
 
 interface OrchestrationScenariosProps {
   config: OrchestrationConfig;
   onChange: (config: OrchestrationConfig) => void;
+  /** Order line statuses that can be selected (from the settings). */
+  statusOptions: string[];
+  suppliers: SupplierRef[];
 }
 
 type Menu = 'status' | 'type' | 'rank' | 'suppliers' | null;
 
-const STATUSES: OrderStatus[] = ['Placed', 'Out Of Stock', 'Supplier'];
 const TYPES: { value: StockPointType; label: string }[] = [
   { value: 'warehouse', label: 'Warehouse' },
   { value: 'supplier', label: 'Supplier' },
@@ -42,7 +43,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   </section>
 );
 
-export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ config, onChange }) => {
+export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ config, onChange, statusOptions, suppliers }) => {
   const [activeMenu, setActiveMenu] = useState<Menu>(null);
   const close = () => setActiveMenu(null);
   const toggle = (m: Exclude<Menu, null>) => setActiveMenu((cur) => (cur === m ? null : m));
@@ -66,7 +67,8 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
             {activeMenu === 'status' && (
               <OsFloating onClose={close} style={{ width: 240 }}>
                 <div className="os-float-head"><span className="os-body-l t-secondary">Order status</span></div>
-                {STATUSES.map((s) => (
+                {statusOptions.length === 0 && <div className="os-opt t-secondary">No status configured</div>}
+                {statusOptions.map((s) => (
                   <div key={s}><OsCheckbox checked={config.statuses.includes(s)} onChange={() => toggleStatus(s)} label={s} /></div>
                 ))}
               </OsFloating>
@@ -138,7 +140,8 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
                     <OsButton kind="tertiary" color="brand" onClick={() => onChange({ ...config, selectedSupplierIds: [] })}>Clear</OsButton>
                   </div>
                   <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-                    {MOCK_SUPPLIERS.map((s) => (
+                    {suppliers.length === 0 && <div className="os-opt t-secondary">No supplier found</div>}
+                    {suppliers.map((s) => (
                       <div key={s.id}>
                         <OsCheckbox
                           checked={(config.selectedSupplierIds || []).includes(s.id)}

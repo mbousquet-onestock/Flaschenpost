@@ -1,117 +1,24 @@
-
 import React, { useMemo } from 'react';
-import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SUPPLIERS, SHIPPING_FEE } from '../constants';
-import { OrchestrationConfig, Product, Supplier } from '../types';
+import { Dataset, OrchestrationConfig } from '../types';
+import { GroupedResult, simulate } from '../services/simulation';
 import { OsAlert, OsBadge, OsButton, OsIcon } from './os';
 
 const eur = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'EUR' });
+const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 const MODE_LABEL: Record<string, string> = { cheapest_price: 'Cheapest purchase price', cheapest_price_franco: 'Price and Franco optimisation' };
 
 interface ResultsVisualizationProps {
   strategyName: string;
   config: OrchestrationConfig;
+  data: Dataset;
   onNext: () => void;
 }
 
-interface GroupedResult {
-  sku: string;
-  productName: string;
-  supplierName: string;
-  supplierId: string;
-  totalQuantity: number;
-  unitPrice: number;
-  totalAmount: number;
-  francoReached: boolean;
-  franco: number;
-  shippingFee?: number;
-}
-
-export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ strategyName, config, onNext }) => {
-  const { results, matchedOrdersCount } = useMemo(() => {
-    // 1. Filter orders by selected statuses and rank
-    const filteredOrders = MOCK_ORDERS.filter((order: any) => {
-      const statusMatch = config.statuses.includes(order.status as any);
-      if (!statusMatch) return false;
-
-      if (config.stockPointRank === 'P1') return order.priority === 'P1';
-      if (config.stockPointRank === 'P2') return order.priority === 'P1' || order.priority === 'P2';
-      return true; // P3 takes all
-    });
-
-    const matchedOrdersCount = filteredOrders.length;
-
-    // 1.5 Filter by selected suppliers if any
-    const selectedSupplierIds = config.selectedSupplierIds || [];
-    
-    // 2. Group by SKU
-    const skuTotals: Record<string, number> = {};
-    filteredOrders.forEach((order: any) => {
-      skuTotals[order.sku] = (skuTotals[order.sku] || 0) + order.quantity;
-    });
-
-    // 3. Map to suppliers and calculate prices
-    const supplierGroups: Record<string, GroupedResult[]> = {};
-    
-    Object.entries(skuTotals).forEach(([sku, quantity]) => {
-      const product = MOCK_PRODUCTS.find((p: Product) => p.sku === sku);
-      if (!product) return;
-
-      const supplier = MOCK_SUPPLIERS.find((s: Supplier) => s.id === product.supplierId);
-      if (!supplier) return;
-
-      // Filter by selected suppliers if specified
-      if (selectedSupplierIds.length > 0 && !selectedSupplierIds.includes(supplier.id)) {
-        return;
-      }
-
-      // Find the best price based on quantity
-      const sortedPrices = [...product.prices].sort((a: any, b: any) => b.quantity - a.quantity);
-      const priceTier = sortedPrices.find((p: any) => quantity >= p.quantity) || sortedPrices[sortedPrices.length - 1];
-      const unitPrice = priceTier.price;
-      const totalAmount = unitPrice * quantity;
-
-      if (!supplierGroups[supplier.id]) {
-        supplierGroups[supplier.id] = [];
-      }
-
-      supplierGroups[supplier.id].push({
-        sku,
-        productName: product.name,
-        supplierName: supplier.name,
-        supplierId: supplier.id,
-        totalQuantity: quantity,
-        unitPrice,
-        totalAmount,
-        francoReached: false, // Will calculate after grouping all items for this supplier
-        franco: supplier.franco
-      });
-    });
-
-    // 4. Calculate if franco is reached for each supplier
-    const finalResults: GroupedResult[] = [];
-    Object.values(supplierGroups).forEach((items: GroupedResult[]) => {
-      const supplierTotal = items.reduce((sum: number, item: GroupedResult) => sum + item.totalAmount, 0);
-      const francoReached = supplierTotal >= items[0].franco;
-      
-      items.forEach((item: GroupedResult, idx: number) => {
-        // Add shipping fee only to the first item of the supplier group for accounting
-        const shippingFee = (!francoReached && idx === 0 && !config.blockIfFrancoNotMet) ? SHIPPING_FEE : 0;
-        finalResults.push({ ...item, francoReached, shippingFee });
-      });
-    });
-
-    return { results: finalResults.sort((a, b) => a.supplierName.localeCompare(b.supplierName)), matchedOrdersCount };
-  }, [config]);
-
-  const totalPurchaseAmount = useMemo(() => {
-    return results.reduce((sum: number, r: GroupedResult) => {
-      if (config.blockIfFrancoNotMet && !r.francoReached) return sum;
-      return sum + r.totalAmount + (r.shippingFee || 0);
-    }, 0);
-  }, [results, config.blockIfFrancoNotMet]);
-
-  const fulfillmentRate = Math.round((matchedOrdersCount / MOCK_ORDERS.length) * 100);
-  const lineFulfillmentRate = Math.round((results.length / MOCK_PRODUCTS.length) * 100);
+export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ strategyName, config, data, onNext }) => {
+  const sim = useMemo(() => simulate(data, config), [data, config]);
+  const { results, totalPurchaseAmount } = sim;
+  const fulfillmentRate = pct(sim.matchedLines, sim.totalLines);
+  const pricedRate = pct(sim.skuCount - sim.unpricedSkus.length, sim.skuCount);
 
   const groups = Object.entries(
     results.reduce((acc: Record<string, GroupedResult[]>, r: GroupedResult) => {
@@ -135,10 +42,19 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
         <div className="os-row" style={{ gap: 24, alignItems: 'stretch' }}>
           <div className="os-kpi"><span className="l">Total purchase</span><span className="v">{eur(totalPurchaseAmount)}</span></div>
           <div className="os-sep-v" />
-          <div className="os-kpi"><span className="l">Matched orders ({fulfillmentRate} %)</span><span className="v">{matchedOrdersCount}</span></div>
+          <div className="os-kpi"><span className="l">Matched order lines ({fulfillmentRate} %)</span><span className="v">{sim.matchedLines}</span></div>
           <div className="os-sep-v" />
-          <div className="os-kpi"><span className="l">Order lines ({lineFulfillmentRate} %)</span><span className="v">{results.length}</span></div>
+          <div className="os-kpi"><span className="l">Orders</span><span className="v">{sim.matchedOrders}</span></div>
+          <div className="os-sep-v" />
+          <div className="os-kpi"><span className="l">Priced SKUs ({pricedRate} %)</span><span className="v">{sim.skuCount - sim.unpricedSkus.length} / {sim.skuCount}</span></div>
         </div>
+        {sim.unpricedSkus.length > 0 && (
+          <OsAlert color="orange">
+            {sim.unpricedSkus.length} SKU(s) have no supplier price and are left out: {sim.unpricedSkus.slice(0, 8).join(', ')}
+            {sim.unpricedSkus.length > 8 ? '…' : ''}
+          </OsAlert>
+        )}
+        {data.truncated && <OsAlert color="orange">Only the first 2,000 orders were loaded.</OsAlert>}
         {config.blockIfFrancoNotMet && (
           <OsAlert color="orange">Blocking mode is active: orders whose supplier does not reach the Franco are excluded.</OsAlert>
         )}
@@ -164,6 +80,7 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                 const totalAmount = items.reduce((sum, i) => sum + i.totalAmount, 0) + shippingFee;
                 const shippingPerUnit = totalQuantity > 0 ? shippingFee / totalQuantity : 0;
                 const reached = items[0].francoReached;
+                const noFranco = items[0].franco === null;
 
                 return (
                   <React.Fragment key={supplierId}>
@@ -208,7 +125,7 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                     <tr className="subtotal">
                       <td style={{ whiteSpace: 'nowrap' }}>Total {items[0].supplierName}</td>
                       <td className="os-body-s t-secondary">
-                        {shippingFee > 0 ? `Incl. ${eur(shippingPerUnit)} shipping per unit` : reached ? 'Franco reached' : ''}
+                        {shippingFee > 0 ? `Incl. ${eur(shippingPerUnit)} shipping per unit` : noFranco ? 'No franco defined' : reached ? `Franco ${eur(items[0].franco!)} reached` : `Franco ${eur(items[0].franco!)}`}
                       </td>
                       <td className="r t-num">{totalQuantity}</td>
                       <td />
@@ -230,7 +147,7 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
         <div>
           <h3 className="os-title-s" style={{ margin: 0 }}>Finalise orchestration</h3>
           <p className="os-label-s t-secondary" style={{ margin: '4px 0 0' }}>
-            {strategyName ? `${strategyName} · ` : ''}{matchedOrdersCount} orders ({fulfillmentRate} %) · {results.length} order lines ({lineFulfillmentRate} %)
+            {strategyName ? `${strategyName} · ` : ''}{sim.matchedOrders} orders · {sim.matchedLines} order lines ({fulfillmentRate} %) · {results.length} purchase lines
           </p>
         </div>
         <OsButton icon="play" onClick={onNext}>Launch</OsButton>

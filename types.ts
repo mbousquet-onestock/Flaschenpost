@@ -18,7 +18,8 @@ export interface Product {
   prices: PurchasePrice[];
 }
 
-export type OrderStatus = 'Placed' | 'Out Of Stock' | 'Supplier';
+/** Order line status. Static version: Placed / Out Of Stock / Supplier; dynamic version: OneStock line item states. */
+export type OrderStatus = string;
 export type StockPointType = 'warehouse' | 'supplier';
 export type StockPointRank = 'P1' | 'P2' | 'P3';
 export type ConsolidationMode = 'cheapest_price' | 'cheapest_price_franco';
@@ -78,4 +79,67 @@ export enum Step {
   StrategyManagement = 0,
   OrchestrationScenarios = 1,
   ResultsVisualization = 2
+}
+
+// ---------- Data used by the simulation and the price management (static or dynamic source) ----------
+
+export interface SupplierRef {
+  id: string;
+  name: string;
+  /** Free shipping threshold, null when none is defined. */
+  franco: number | null;
+  rank?: StockPointRank;
+}
+
+export interface ItemRef {
+  id: string;
+  name: string;
+}
+
+/** Purchase price of an item at a supplier, from `minQty` units. */
+export interface PriceTier {
+  supplierId: string;
+  itemId: string;
+  minQty: number;
+  unitPrice: number;
+}
+
+export interface SupplierTerm {
+  supplierId: string;
+  franco: number | null;
+}
+
+export interface OrderLine {
+  id: string;
+  orderId: string;
+  sku: string;
+  quantity: number;
+  status: string;
+  priority?: 'P1' | 'P2' | 'P3';
+}
+
+export interface Dataset {
+  lines: OrderLine[];
+  items: ItemRef[];
+  suppliers: SupplierRef[];
+  prices: PriceTier[];
+  /** Order line statuses offered in the execution scenario. */
+  statusOptions: string[];
+  truncated?: boolean;
+}
+
+export interface Settings {
+  apiUser: string;
+  hasPassword: boolean;
+  connected: boolean;
+  tokenAt: string | null;
+  lineStatuses: string[];
+  supplierType: string;
+}
+
+export interface SettingsUpdate {
+  apiUser?: string;
+  password?: string;
+  lineStatuses?: string[];
+  supplierType?: string;
 }

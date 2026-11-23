@@ -5,25 +5,33 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:dynamic": "vite --mode dynamic",
+    "dev:api": "tsx scripts/dev-api.ts",
     "build": "tsc && vite build",
+    "build:dynamic": "tsc && vite build --mode dynamic",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "template": "tsx scripts/build-template.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
     "lucide-react": "^0.576.0",
+    "postgres": "^3.4.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.0",
-    "tailwind-merge": "^2.5.4"
+    "tailwind-merge": "^2.5.4",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@types/node": "^26.6.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
+    "tsx": "^4.23.15",
     "typescript": "^5.6.3",
     "vite": "^6.0.0"
   }

@@ -1,7 +1,7 @@
 {
-  "version": 2,
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/.*", "dest": "/index.html" }
-  ]
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "functions": {
+    "api/orders.ts": { "maxDuration": 60 },
+    "api/suppliers.ts": { "maxDuration": 30 }
+  }
 }
