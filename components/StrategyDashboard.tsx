@@ -8,6 +8,9 @@ interface StrategyDashboardProps {
   onEdit: (strategy: Scenario) => void;
   onCreateNew: () => void;
   onUpdateName: (id: string, newName: string) => void;
+  onSaveSchedule: (id: string, schedule: { days: number[]; times: string[] }) => void;
+  onDelete: (strategy: Scenario) => void;
+  loading?: boolean;
 }
 
 const DAYS = [
@@ -36,7 +39,7 @@ export const formatDate = (iso?: string) => {
   return m ? `${m[3]}/${m[2]}/${m[1]}${m[4]}` : iso;
 };
 
-export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios, onSelect, onEdit, onCreateNew, onUpdateName }) => {
+export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios, onSelect, onEdit, onCreateNew, onUpdateName, onSaveSchedule, onDelete, loading }) => {
   const [showScheduleId, setShowScheduleId] = useState<string | null>(null);
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
@@ -63,10 +66,11 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
     else setSelectedDays([1, 2, 3, 4, 5, 6, 0]);
   };
 
-  const toggleSchedule = (id: string) => {
-    if (showScheduleId === id) return setShowScheduleId(null);
-    setShowScheduleId(id);
-    setManualTimes(['08:00', '14:00', '20:00']);
+  const toggleSchedule = (strategy: Scenario) => {
+    if (showScheduleId === strategy.id) return setShowScheduleId(null);
+    setShowScheduleId(strategy.id);
+    setSelectedDays(strategy.schedule?.days ?? [1, 2, 3, 4, 5]);
+    setManualTimes(strategy.schedule?.times ?? ['08:00', '14:00', '20:00']);
   };
 
   return (
@@ -158,8 +162,9 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                           aria-label="Schedule"
                           aria-expanded={scheduleOpen}
                           className={scheduleOpen ? 'brand' : undefined}
-                          onClick={() => toggleSchedule(strategy.id)}
+                          onClick={() => toggleSchedule(strategy)}
                         />
+                        <OsButton kind="tertiary" color="red" round icon="trash" title="Delete" aria-label="Delete" onClick={() => onDelete(strategy)} />
                         <OsButton kind="secondary" icon="play" onClick={() => onSelect(strategy)}>Simulate</OsButton>
                       </div>
                     </td>
@@ -230,7 +235,7 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
 
                           <div className="os-row" style={{ justifyContent: 'flex-end' }}>
                             <OsButton kind="secondary" onClick={() => setShowScheduleId(null)}>Cancel</OsButton>
-                            <OsButton icon="check" disabled={!selectedDays.length || !manualTimes.length} onClick={() => setShowScheduleId(null)}>
+                            <OsButton icon="check" disabled={!selectedDays.length || !manualTimes.length} onClick={() => { onSaveSchedule(strategy.id, { days: selectedDays, times: manualTimes }); setShowScheduleId(null); }}>
                               Save schedule
                             </OsButton>
                           </div>
@@ -241,6 +246,9 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                 </React.Fragment>
               );
             })}
+            {scenarios.length === 0 && (
+              <tr><td colSpan={7} className="os-empty">{loading ? 'Loading strategies' : 'No strategy yet for this site. Create one with New strategy.'}</td></tr>
+            )}
           </tbody>
         </table>
       </div>

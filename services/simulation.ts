@@ -35,8 +35,8 @@ export function unitPriceFor(tiers: PriceTier[], quantity: number): number | und
 
 export function simulate(data: Dataset, config: OrchestrationConfig): SimulationResult {
   const lines = data.lines.filter((l) => {
-    if (!config.statuses.includes(l.status)) return false;
-    if (!l.priority) return true;
+    if (config.statuses.length && !config.statuses.includes(l.status)) return false;
+    if (!l.priority || !config.stockPointRank) return true;
     if (config.stockPointRank === 'P1') return l.priority === 'P1';
     if (config.stockPointRank === 'P2') return l.priority !== 'P3';
     return true;

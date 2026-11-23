@@ -2,8 +2,8 @@
 //  - static: mock data from constants.tsx, edits kept in the browser;
 //  - dynamic: OneStock API through the Vercel functions, settings and prices in the database.
 // VITE_DATA_MODE only sets the default mode of a site that has none saved.
-import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SUPPLIERS } from '../constants';
-import type { Dataset, ItemRef, PriceTier, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
+import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SCENARIOS, MOCK_SUPPLIERS } from '../constants';
+import type { Dataset, ItemRef, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
 import { api } from './api';
 import type { HostContext } from './context';
 
@@ -24,6 +24,10 @@ export interface DataSource {
   getSettings(): Promise<Settings>;
   saveSettings(s: SettingsUpdate): Promise<void>;
   testConnection(apiUser?: string, password?: string): Promise<void>;
+  /** Wave strategies: per site in the database (dynamic), in the browser (static). */
+  listStrategies(): Promise<Scenario[]>;
+  saveStrategy(s: Scenario): Promise<void>;
+  deleteStrategy(id: string): Promise<void>;
 }
 
 /* ------------------------------------------------------------------ static ------------------------------------------------------------------ */
@@ -31,7 +35,7 @@ export interface DataSource {
 const STATIC_KEY = 'wave-orchestrator.static-data';
 const STATIC_STATUSES = ['Placed', 'Out Of Stock', 'Supplier'];
 
-type StaticStore = { prices?: PriceTier[]; terms?: SupplierTerm[]; lineStatuses?: string[] };
+type StaticStore = { prices?: PriceTier[]; terms?: SupplierTerm[]; lineStatuses?: string[]; strategies?: Scenario[] };
 
 function readStore(): StaticStore {
   try {
@@ -115,6 +119,17 @@ export const staticSource: DataSource = {
   async testConnection() {
     throw new Error('The connection to OneStock is only available in the dynamic version.');
   },
+  async listStrategies() {
+    return store().strategies ?? MOCK_SCENARIOS;
+  },
+  async saveStrategy(st) {
+    const list = store().strategies ?? MOCK_SCENARIOS;
+    const next = list.some((x) => x.id === st.id) ? list.map((x) => (x.id === st.id ? st : x)) : [...list, st];
+    save({ ...store(), strategies: next });
+  },
+  async deleteStrategy(id) {
+    save({ ...store(), strategies: (store().strategies ?? MOCK_SCENARIOS).filter((x) => x.id !== id) });
+  },
 };
 
 /* ------------------------------------------------------------------ dynamic ------------------------------------------------------------------ */
@@ -173,6 +188,15 @@ function dynamicSource(ctx: HostContext): DataSource {
     async testConnection(apiUser, password) {
       await api(ctx, 'login', { method: 'POST', body: { apiUser, password } });
       itemsCache = undefined;
+    },
+    async listStrategies() {
+      return (await api<{ strategies: Scenario[] }>(ctx, 'strategies')).strategies;
+    },
+    async saveStrategy(st) {
+      await api(ctx, 'strategies', { method: 'PUT', body: st });
+    },
+    async deleteStrategy(id) {
+      await api(ctx, 'strategies', { method: 'DELETE', query: { id } });
     },
   };
   return source;

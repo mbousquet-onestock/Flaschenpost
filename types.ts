@@ -24,12 +24,15 @@ export type StockPointType = 'warehouse' | 'supplier';
 export type StockPointRank = 'P1' | 'P2' | 'P3';
 export type ConsolidationMode = 'cheapest_price' | 'cheapest_price_franco';
 
+/** Execution scenario. A condition that was removed is empty (statuses) or undefined (other fields). */
 export interface OrchestrationConfig {
+  /** Order line statuses to take; empty = no status condition. */
   statuses: OrderStatus[];
-  stockPointType: StockPointType;
-  stockPointRank: StockPointRank;
+  stockPointType?: StockPointType;
+  stockPointRank?: StockPointRank;
   consolidationMode: ConsolidationMode;
   blockIfFrancoNotMet: boolean;
+  /** Suppliers to use; undefined = no supplier condition, [] = all suppliers. */
   selectedSupplierIds?: string[];
 }
 
@@ -61,6 +64,8 @@ export interface Scenario {
   lastExecuted?: string;
   nextExecution?: string;
   status?: 'Active' | 'Draft' | 'Scheduled';
+  /** Execution days (0 = Sunday … 6 = Saturday) and times (HH:MM). */
+  schedule?: { days: number[]; times: string[] };
 }
 
 export interface Order {

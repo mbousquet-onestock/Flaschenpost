@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { OrchestrationConfig, OrderStatus, StockPointType, StockPointRank, ConsolidationMode, SupplierRef } from '../types';
-import { OsBadge, OsButton, OsCheckbox, OsFloating, OsIcon, OsSwitch, OsTag } from './os';
+import { OsButton, OsCheckbox, OsFloating, OsIcon, OsSwitch, OsTag } from './os';
 
 interface OrchestrationScenariosProps {
   config: OrchestrationConfig;
@@ -10,7 +10,8 @@ interface OrchestrationScenariosProps {
   suppliers: SupplierRef[];
 }
 
-type Menu = 'status' | 'type' | 'rank' | 'suppliers' | null;
+type Condition = 'status' | 'type' | 'rank' | 'suppliers';
+type Menu = Condition | 'add-order' | 'add-stock' | null;
 
 const TYPES: { value: StockPointType; label: string }[] = [
   { value: 'warehouse', label: 'Warehouse' },
@@ -21,20 +22,7 @@ const MODES: { value: ConsolidationMode; title: string; text: string }[] = [
   { value: 'cheapest_price', title: 'Cheapest purchase price', text: 'Groups quantities to reach the best unit price tier per SKU.' },
   { value: 'cheapest_price_franco', title: 'Price and Franco optimisation', text: 'Optimises both the unit price and reaching the free shipping threshold (Franco).' },
 ];
-
-const ConditionTag: React.FC<{ category: string; field: string; value: string; onEdit: () => void }> = ({ category, field, value, onEdit }) => (
-  <OsTag draggable onClick={onEdit}>
-    <span className="muted">{category} · {field} in </span>
-    {value}
-  </OsTag>
-);
-
-const OrRow: React.FC = () => (
-  <div className="os-row" style={{ paddingTop: 4 }}>
-    <OsBadge text="OR" color="grey" secondary />
-    <OsButton kind="secondary" icon="add">Add condition</OsButton>
-  </div>
-);
+const LABELS: Record<Condition, string> = { status: 'Status', type: 'Type', rank: 'Rank', suppliers: 'Suppliers' };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <section className="os-card os-col">
@@ -48,9 +36,32 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
   const close = () => setActiveMenu(null);
   const toggle = (m: Exclude<Menu, null>) => setActiveMenu((cur) => (cur === m ? null : m));
 
+  const has: Record<Condition, boolean> = {
+    status: config.statuses.length > 0,
+    type: !!config.stockPointType,
+    rank: !!config.stockPointRank,
+    suppliers: config.selectedSupplierIds !== undefined,
+  };
+
+  const add = (c: Condition) => {
+    if (c === 'status') onChange({ ...config, statuses: statusOptions.length ? [...statusOptions] : config.statuses });
+    if (c === 'type') onChange({ ...config, stockPointType: 'supplier' });
+    if (c === 'rank') onChange({ ...config, stockPointRank: 'P1' });
+    if (c === 'suppliers') onChange({ ...config, selectedSupplierIds: [] });
+    setActiveMenu(c === 'status' || c === 'suppliers' ? c : null);
+  };
+
+  const remove = (c: Condition) => {
+    if (c === 'status') onChange({ ...config, statuses: [] });
+    if (c === 'type') onChange({ ...config, stockPointType: undefined });
+    if (c === 'rank') onChange({ ...config, stockPointRank: undefined });
+    if (c === 'suppliers') onChange({ ...config, selectedSupplierIds: undefined });
+    close();
+  };
+
   const toggleStatus = (status: OrderStatus) => {
     const statuses = config.statuses.includes(status) ? config.statuses.filter((s) => s !== status) : [...config.statuses, status];
-    onChange({ ...config, statuses });
+    if (statuses.length) onChange({ ...config, statuses });
   };
 
   const toggleSupplier = (id: string) => {
@@ -58,111 +69,100 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
     onChange({ ...config, selectedSupplierIds: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
   };
 
+  const tag = (c: Condition, category: string, value: string, editor: React.ReactNode, width?: number) => (
+    <div style={{ position: 'relative' }} key={c}>
+      <OsTag draggable onClick={() => toggle(c)} onClose={() => remove(c)}>
+        <span className="muted">{category} · {LABELS[c]} in </span>
+        {value}
+      </OsTag>
+      {activeMenu === c && <OsFloating onClose={close} style={width ? { width } : undefined}>{editor}</OsFloating>}
+    </div>
+  );
+
+  const addButton = (menu: 'add-order' | 'add-stock', options: Condition[]) => {
+    const missing = options.filter((c) => !has[c]);
+    return (
+      <div style={{ position: 'relative' }}>
+        <OsButton kind="secondary" icon="add" disabled={!missing.length} onClick={() => toggle(menu)}>Add condition</OsButton>
+        {activeMenu === menu && (
+          <OsFloating onClose={close}>
+            {missing.map((c) => (
+              <button key={c} type="button" className="os-opt" onClick={() => add(c)}>{LABELS[c]}</button>
+            ))}
+          </OsFloating>
+        )}
+      </div>
+    );
+  };
+
+  const option = (selected: boolean, label: string, onClick: () => void) => (
+    <button key={label} type="button" className={`os-opt${selected ? ' selected' : ''}`} onClick={onClick}>
+      <span style={{ flex: 1 }}>{label}</span>
+      {selected && <OsIcon icon="check" size="s" />}
+    </button>
+  );
+
   return (
     <div className="os-col">
       <Section title="Order information">
         <div className="os-row">
-          <div style={{ position: 'relative' }}>
-            <ConditionTag category="Order information" field="Status" value={config.statuses.join(', ') || 'None'} onEdit={() => toggle('status')} />
-            {activeMenu === 'status' && (
-              <OsFloating onClose={close} style={{ width: 240 }}>
-                <div className="os-float-head"><span className="os-body-l t-secondary">Order status</span></div>
+          {has.status &&
+            tag('status', 'Order information', config.statuses.join(', '), (
+              <>
+                <div className="os-float-head"><span className="os-body-l t-secondary">Order line status</span></div>
                 {statusOptions.length === 0 && <div className="os-opt t-secondary">No status configured</div>}
                 {statusOptions.map((s) => (
                   <div key={s}><OsCheckbox checked={config.statuses.includes(s)} onChange={() => toggleStatus(s)} label={s} /></div>
                 ))}
-              </OsFloating>
-            )}
-          </div>
-          <OsButton kind="secondary" icon="add" onClick={() => setActiveMenu('status')}>Add condition</OsButton>
+              </>
+            ), 240)}
+          {addButton('add-order', ['status'])}
         </div>
-        <OrRow />
+        {!has.status && <p className="os-label-s t-secondary" style={{ margin: 0 }}>No condition: order lines of every configured status are taken.</p>}
       </Section>
 
       <Section title="Stock point">
-        <div className="os-row">
-          <div style={{ position: 'relative' }}>
-            <ConditionTag category="Stock point" field="Type" value={TYPES.find((t) => t.value === config.stockPointType)?.label ?? config.stockPointType} onEdit={() => toggle('type')} />
-            {activeMenu === 'type' && (
-              <OsFloating onClose={close}>
-                {TYPES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    className={`os-opt${config.stockPointType === t.value ? ' selected' : ''}`}
-                    onClick={() => { onChange({ ...config, stockPointType: t.value }); close(); }}
-                  >
-                    <span style={{ flex: 1 }}>{t.label}</span>
-                    {config.stockPointType === t.value && <OsIcon icon="check" size="s" />}
-                  </button>
-                ))}
-              </OsFloating>
-            )}
-          </div>
-          <OsButton kind="secondary" icon="add" onClick={() => setActiveMenu('type')}>Add condition</OsButton>
-        </div>
-
-        <div className="os-row">
-          <div style={{ position: 'relative' }}>
-            <ConditionTag category="Stock point" field="Rank" value={config.stockPointRank} onEdit={() => toggle('rank')} />
-            {activeMenu === 'rank' && (
-              <OsFloating onClose={close}>
-                {RANKS.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    className={`os-opt${config.stockPointRank === r ? ' selected' : ''}`}
-                    onClick={() => { onChange({ ...config, stockPointRank: r }); close(); }}
-                  >
-                    <span style={{ flex: 1 }}>{r}</span>
-                    {config.stockPointRank === r && <OsIcon icon="check" size="s" />}
-                  </button>
-                ))}
-              </OsFloating>
-            )}
-          </div>
-          <OsButton kind="secondary" icon="add" onClick={() => setActiveMenu('rank')}>Add condition</OsButton>
-        </div>
-
-        {config.stockPointType === 'supplier' && (
+        {has.type &&
           <div className="os-row">
-            <div style={{ position: 'relative' }}>
-              <ConditionTag
-                category="Stock point"
-                field="Suppliers"
-                value={config.selectedSupplierIds?.length ? `${config.selectedSupplierIds.length} selected` : 'All'}
-                onEdit={() => toggle('suppliers')}
-              />
-              {activeMenu === 'suppliers' && (
-                <OsFloating onClose={close} style={{ width: 280 }}>
-                  <div className="os-float-head">
-                    <span className="os-body-l t-secondary">Suppliers</span>
-                    <OsButton kind="tertiary" color="brand" onClick={() => onChange({ ...config, selectedSupplierIds: [] })}>Clear</OsButton>
-                  </div>
-                  <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-                    {suppliers.length === 0 && <div className="os-opt t-secondary">No supplier found</div>}
-                    {suppliers.map((s) => (
-                      <div key={s.id}>
-                        <OsCheckbox
-                          checked={(config.selectedSupplierIds || []).includes(s.id)}
-                          onChange={() => toggleSupplier(s.id)}
-                          label={
-                            <span style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span className="os-label-s">{s.name}</span>
-                              <span className="os-body-s t-secondary">{s.id}</span>
-                            </span>
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </OsFloating>
-              )}
-            </div>
-            <OsButton kind="secondary" icon="add" onClick={() => setActiveMenu('suppliers')}>Add condition</OsButton>
-          </div>
-        )}
-        <OrRow />
+            {tag('type', 'Stock point', TYPES.find((t) => t.value === config.stockPointType)?.label ?? String(config.stockPointType), (
+              TYPES.map((t) => option(config.stockPointType === t.value, t.label, () => { onChange({ ...config, stockPointType: t.value }); close(); }))
+            ))}
+          </div>}
+        {has.rank &&
+          <div className="os-row">
+            {tag('rank', 'Stock point', String(config.stockPointRank), (
+              RANKS.map((r) => option(config.stockPointRank === r, r, () => { onChange({ ...config, stockPointRank: r }); close(); }))
+            ))}
+          </div>}
+        {has.suppliers &&
+          <div className="os-row">
+            {tag('suppliers', 'Stock point', config.selectedSupplierIds?.length ? `${config.selectedSupplierIds.length} selected` : 'All', (
+              <>
+                <div className="os-float-head">
+                  <span className="os-body-l t-secondary">Suppliers</span>
+                  <OsButton kind="tertiary" color="brand" onClick={() => onChange({ ...config, selectedSupplierIds: [] })}>All</OsButton>
+                </div>
+                <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                  {suppliers.length === 0 && <div className="os-opt t-secondary">No supplier found</div>}
+                  {suppliers.map((s) => (
+                    <div key={s.id}>
+                      <OsCheckbox
+                        checked={(config.selectedSupplierIds || []).includes(s.id)}
+                        onChange={() => toggleSupplier(s.id)}
+                        label={
+                          <span style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span className="os-label-s">{s.name}</span>
+                            <span className="os-body-s t-secondary">{s.id}</span>
+                          </span>
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ), 280)}
+          </div>}
+        <div className="os-row">{addButton('add-stock', ['type', 'rank', 'suppliers'])}</div>
       </Section>
 
       <Section title="Consolidation strategy">

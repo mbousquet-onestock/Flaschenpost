@@ -7,9 +7,9 @@ import { SettingsTab } from './components/SettingsTab';
 import { ExtensionLayout, PageHeader } from './components/Layout';
 import { OsAlert, OsButton, OsLoading, OsStepper, OsTabs } from './components/os';
 import { Step, Scenario, OrchestrationConfig, Dataset } from './types';
-import { MOCK_SCENARIOS } from './constants';
 import { HostContext, resolveHostContext, setManualContext } from './services/context';
 import { createDataSource, DataMode, DEFAULT_MODE, loadSavedMode } from './services/dataSource';
+import { simulate } from './services/simulation';
 
 const DEFAULT_CONFIG: OrchestrationConfig = {
   statuses: ['Placed', 'Out Of Stock'],
@@ -22,6 +22,25 @@ const DEFAULT_CONFIG: OrchestrationConfig = {
 
 const STEPS = ['Execution scenario', 'Consolidated purchase orders'];
 
+const pad = (n: number) => String(n).padStart(2, '0');
+/** "YYYY-MM-DD HH:MM", the format shown in the strategy list. */
+const stamp = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+/** Next execution of a schedule from now, in the browser's time zone. */
+function nextRun(schedule: { days: number[]; times: string[] }): string | undefined {
+  const now = new Date();
+  for (let d = 0; d < 8; d++) {
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
+    if (!schedule.days.includes(day.getDay())) continue;
+    for (const t of [...schedule.times].sort()) {
+      const [h, m] = t.split(':').map(Number);
+      const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+      if (at > now) return stamp(at);
+    }
+  }
+  return undefined;
+}
+
 type Tab = 'strategies' | 'prices' | 'settings';
 
 /** ?settings (or #settings) in the URL opens the settings tab directly. */
@@ -32,8 +51,11 @@ const settingsRequested = () => {
 
 const App: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>(Step.StrategyManagement);
-  const [scenarios, setScenarios] = useState<Scenario[]>(MOCK_SCENARIOS);
-  const [strategyName, setStrategyName] = useState<string>('');
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [strategiesLoading, setStrategiesLoading] = useState(true);
+  /** Strategy being edited or simulated (saved on Finish and save / Launch). */
+  const [current, setCurrent] = useState<Scenario | null>(null);
+  const strategyName = current?.name ?? '';
   const [orchestrationConfig, setOrchestrationConfig] = useState<OrchestrationConfig>(DEFAULT_CONFIG);
   const [tab, setTab] = useState<Tab>(settingsRequested() ? 'settings' : 'strategies');
 
@@ -75,26 +97,96 @@ const App: React.FC = () => {
     };
   }, [source, dataVersion]);
 
+  // ---------- strategies (per site in dynamic mode) ----------
+  const [strategyError, setStrategyError] = useState<string | null>(null);
+  const reloadStrategies = useCallback(async () => {
+    if (!source) return;
+    setStrategiesLoading(true);
+    try {
+      setScenarios(await source.listStrategies());
+      setStrategyError(null);
+    } catch (e) {
+      setScenarios([]);
+      setStrategyError((e as Error).message);
+    } finally {
+      setStrategiesLoading(false);
+    }
+  }, [source]);
+  useEffect(() => {
+    reloadStrategies();
+  }, [reloadStrategies]);
+
+  const persist = async (s: Scenario) => {
+    try {
+      await source!.saveStrategy(s);
+      setStrategyError(null);
+    } catch (e) {
+      setStrategyError(`The strategy could not be saved: ${(e as Error).message}`);
+    }
+    await reloadStrategies();
+  };
+
   // ---------- strategy flow ----------
   const openStrategy = (strategy: Scenario, step: Step) => {
-    setStrategyName(strategy.name);
+    setCurrent(strategy);
     if (strategy.config) {
-      // Keep only the statuses available in the current data; fall back to all of them.
+      // Keep only the statuses available in the current data (an empty list means no status condition).
       const options = data?.statusOptions ?? [];
-      const statuses = strategy.config.statuses.filter((st) => options.includes(st));
-      setOrchestrationConfig({ ...strategy.config, statuses: statuses.length ? statuses : options.length ? options : strategy.config.statuses });
+      const statuses = options.length ? strategy.config.statuses.filter((st) => options.includes(st)) : strategy.config.statuses;
+      setOrchestrationConfig({ ...strategy.config, statuses });
     }
     setCurrentStep(step);
   };
 
   const handleCreateNew = () => {
-    setStrategyName('New strategy ' + new Date().toLocaleDateString('fr-FR'));
+    setCurrent({
+      id: `ST-${Date.now().toString(36)}`,
+      name: 'New strategy ' + new Date().toLocaleDateString('fr-FR'),
+      description: '',
+      rules: [],
+      metrics: { fulfillmentRate: 0, shippingCost: 0, deliveryTime: 0, carbonFootprint: 0, orderCount: 0, itemCount: 0 },
+      status: 'Draft',
+    });
     setOrchestrationConfig({ ...DEFAULT_CONFIG, statuses: data?.statusOptions ?? DEFAULT_CONFIG.statuses, selectedSupplierIds: [] });
     setCurrentStep(Step.OrchestrationScenarios);
   };
 
   const handleUpdateStrategyName = (id: string, newName: string) => {
-    setScenarios((prev) => prev.map((s) => (s.id === id ? { ...s, name: newName } : s)));
+    const s = scenarios.find((x) => x.id === id);
+    if (s) persist({ ...s, name: newName });
+  };
+
+  const handleSaveSchedule = (id: string, schedule: { days: number[]; times: string[] }) => {
+    const s = scenarios.find((x) => x.id === id);
+    if (s) persist({ ...s, schedule, nextExecution: nextRun(schedule), status: s.status === 'Draft' ? 'Scheduled' : s.status });
+  };
+
+  const handleDelete = async (s: Scenario) => {
+    if (!window.confirm(`Delete the strategy "${s.name}"?`)) return;
+    try {
+      await source!.deleteStrategy(s.id);
+    } catch (e) {
+      setStrategyError(`The strategy could not be deleted: ${(e as Error).message}`);
+    }
+    await reloadStrategies();
+  };
+
+  /** Saves the current strategy with its scenario and the figures of its simulation. */
+  const saveCurrent = async (launched: boolean) => {
+    if (!current) return;
+    const sim = data ? simulate(data, orchestrationConfig) : null;
+    await persist({
+      ...current,
+      config: orchestrationConfig,
+      metrics: {
+        ...current.metrics,
+        orderCount: sim?.matchedOrders ?? current.metrics.orderCount,
+        itemCount: sim ? sim.results.reduce((n, r) => n + r.totalQuantity, 0) : current.metrics.itemCount,
+        totalPurchaseAmount: sim?.totalPurchaseAmount ?? current.metrics.totalPurchaseAmount,
+      },
+      ...(launched ? { lastExecuted: stamp(new Date()), status: 'Active' as const } : {}),
+    });
+    setCurrentStep(Step.StrategyManagement);
   };
 
   const backToDashboard = () => setCurrentStep(Step.StrategyManagement);
@@ -125,7 +217,7 @@ const App: React.FC = () => {
       {currentStep < Step.ResultsVisualization ? (
         <OsButton onClick={nextStep} iconEnd="arrow-right">Continue</OsButton>
       ) : (
-        <OsButton icon="check" onClick={backToDashboard}>Finish and save</OsButton>
+        <OsButton icon="check" onClick={() => saveCurrent(false)}>Finish and save</OsButton>
       )}
     </div>
   );
@@ -142,7 +234,7 @@ const App: React.FC = () => {
             (currentStep === Step.OrchestrationScenarios ? (
               <OrchestrationScenarios config={orchestrationConfig} onChange={setOrchestrationConfig} statusOptions={data!.statusOptions} suppliers={data!.suppliers} />
             ) : (
-              <ResultsVisualization strategyName={strategyName} config={orchestrationConfig} data={data!} onNext={backToDashboard} />
+              <ResultsVisualization strategyName={strategyName} config={orchestrationConfig} data={data!} onNext={() => saveCurrent(true)} />
             ))}
         </div>
       </ExtensionLayout>
@@ -163,8 +255,12 @@ const App: React.FC = () => {
         {tab === 'strategies' && (
           <>
             {dataError && dataState}
+            {strategyError && <OsAlert color="red">{strategyError}</OsAlert>}
             <StrategyDashboard
               scenarios={scenarios}
+              loading={strategiesLoading}
+              onSaveSchedule={handleSaveSchedule}
+              onDelete={handleDelete}
               onSelect={(s) => openStrategy(s, Step.ResultsVisualization)}
               onEdit={(s) => openStrategy(s, Step.OrchestrationScenarios)}
               onCreateNew={handleCreateNew}
