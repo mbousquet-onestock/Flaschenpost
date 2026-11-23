@@ -1,4 +1,4 @@
-// Hidden settings tab (?settings in the URL or Ctrl+Shift+S):
+// Settings tab, invisible until hovered (or opened with ?settings in the URL):
 //  - data source: static (sample data) or dynamic (OneStock API), saved per environment + site ID;
 //  - environment connection: environment, site ID, API user and password (token requested with POST /login);
 //  - data retrieved: order line statuses, supplier stock point type.

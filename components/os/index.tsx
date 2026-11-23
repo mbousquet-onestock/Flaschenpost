@@ -165,7 +165,7 @@ export const OsStepper: React.FC<{ steps: string[]; current: number; onStepClick
 );
 
 /* ---------- OsTabs ---------- */
-export function OsTabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string }[]; value: T; onChange: (id: T) => void }) {
+export function OsTabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string; discreet?: boolean }[]; value: T; onChange: (id: T) => void }) {
   const onKey = (e: React.KeyboardEvent, i: number) => {
     const n = tabs.length;
     const next = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i - 1 + n) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
@@ -184,7 +184,7 @@ export function OsTabs<T extends string>({ tabs, value, onChange }: { tabs: { id
             role="tab"
             aria-selected={t.id === value}
             tabIndex={t.id === value ? 0 : -1}
-            className={cx('os-tab', t.id === value && 'active')}
+            className={cx('os-tab', t.id === value && 'active', t.discreet && 'discreet')}
             onClick={() => onChange(t.id)}
             onKeyDown={(e) => onKey(e, i)}
           >

@@ -334,6 +334,9 @@ button { background: none; border: 0; padding: 0; margin: 0; cursor: pointer; te
   font: 500 14px/1 var(--font-family); color: var(--text-placeholder); white-space: nowrap; }
 .os-tab:hover { background: var(--surface-hover-transparent); }
 .os-tab.active, .os-tab.active:hover { background: var(--surface-brand-transparent); color: var(--text-brand); }
+/* Discreet tab: invisible until hovered, focused with the keyboard, or selected. */
+.os-tab.discreet { opacity: 0; transition: opacity .15s; }
+.os-tab.discreet:hover, .os-tab.discreet:focus-visible, .os-tab.discreet.active { opacity: 1; }
 .os-divider { height: 1px; background: var(--border-primary); border: 0; margin: 0; }
 
 /* ---------- OsSelect (native) ---------- */

@@ -24,7 +24,7 @@ const STEPS = ['Execution scenario', 'Consolidated purchase orders'];
 
 type Tab = 'strategies' | 'prices' | 'settings';
 
-/** The settings tab is hidden: shown with ?settings (or #settings) in the URL, toggled with Ctrl+Shift+S. */
+/** ?settings (or #settings) in the URL opens the settings tab directly. */
 const settingsRequested = () => {
   const u = new URL(window.location.href);
   return u.searchParams.has('settings') || /(^|[#&])settings\b/.test(u.hash);
@@ -36,7 +36,6 @@ const App: React.FC = () => {
   const [strategyName, setStrategyName] = useState<string>('');
   const [orchestrationConfig, setOrchestrationConfig] = useState<OrchestrationConfig>(DEFAULT_CONFIG);
   const [tab, setTab] = useState<Tab>(settingsRequested() ? 'settings' : 'strategies');
-  const [showSettings, setShowSettings] = useState(settingsRequested());
 
   // ---------- context and data ----------
   // Context (environment + site ID) from OneStock or the settings, and the data source saved for that site.
@@ -46,10 +45,7 @@ const App: React.FC = () => {
     resolveHostContext().then(async (ctx) => {
       setContext(ctx);
       // First run: no environment known yet, show the settings so it can be entered.
-      if (!ctx) {
-        setShowSettings(true);
-        setTab('settings');
-      }
+      if (!ctx) setTab('settings');
       setMode((ctx && (await loadSavedMode(ctx))) || DEFAULT_MODE);
     });
   }, []);
@@ -78,21 +74,6 @@ const App: React.FC = () => {
       alive = false;
     };
   }, [source, dataVersion]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        setShowSettings((v) => {
-          if (v) setTab((t) => (t === 'settings' ? 'strategies' : t));
-          else setTab('settings');
-          return !v;
-        });
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   // ---------- strategy flow ----------
   const openStrategy = (strategy: Scenario, step: Step) => {
@@ -168,10 +149,11 @@ const App: React.FC = () => {
     );
   }
 
-  const tabs: { id: Tab; label: string }[] = [
+  const tabs: { id: Tab; label: string; discreet?: boolean }[] = [
     { id: 'strategies', label: 'Strategies' },
     { id: 'prices', label: 'Supplier prices' },
-    ...(showSettings ? [{ id: 'settings' as Tab, label: 'Settings' }] : []),
+    // Invisible until hovered (or selected).
+    { id: 'settings', label: 'Settings', discreet: true },
   ];
 
   return (
@@ -191,7 +173,7 @@ const App: React.FC = () => {
           </>
         )}
         {tab === 'prices' && <PricingTab source={source} onDataChanged={reloadData} />}
-        {tab === 'settings' && showSettings && (
+        {tab === 'settings' && (
           <SettingsTab context={context ?? null} mode={source.mode} onModeChange={setMode} onContextChange={changeContext} onSaved={reloadData} />
         )}
       </div>
