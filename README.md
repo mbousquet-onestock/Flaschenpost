@@ -18,3 +18,12 @@ View your app in AI Studio: https://ai.studio/apps/e06960ed-7d2c-45bc-be51-1ff69
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## OneStock design system
+
+The UI follows the OneStock product design system (back-office):
+
+- `styles/onestock.css`: design tokens (colours, spacing, radii, Roboto type scale) and component styles.
+- `components/os/`: React versions of the `Os*` components used here (OsIcon, OsButton, OsBadge, OsTag, OsCheckbox, OsSwitch, OsSegmentedControl, OsAlert, OsStepper).
+- `components/Layout.tsx`: the mandatory app shell, `OsSideMenu` + `OsNavBar` + content on `surface-page-background`.
+- `public/icons/`, `public/logos/`: official OneStock icons and logo. Do not substitute another icon set.

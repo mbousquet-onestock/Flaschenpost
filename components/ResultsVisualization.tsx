@@ -2,6 +2,10 @@
 import React, { useMemo } from 'react';
 import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SUPPLIERS, SHIPPING_FEE } from '../constants';
 import { OrchestrationConfig, Product, Supplier } from '../types';
+import { OsAlert, OsBadge, OsButton, OsIcon } from './os';
+
+const eur = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'EUR' });
+const MODE_LABEL: Record<string, string> = { cheapest_price: 'Cheapest purchase price', cheapest_price_franco: 'Price and Franco optimisation' };
 
 interface ResultsVisualizationProps {
   strategyName: string;
@@ -109,135 +113,108 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
   const fulfillmentRate = Math.round((matchedOrdersCount / MOCK_ORDERS.length) * 100);
   const lineFulfillmentRate = Math.round((results.length / MOCK_PRODUCTS.length) * 100);
 
+  const groups = Object.entries(
+    results.reduce((acc: Record<string, GroupedResult[]>, r: GroupedResult) => {
+      (acc[r.supplierId] ||= []).push(r);
+      return acc;
+    }, {} as Record<string, GroupedResult[]>)
+  );
+
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
-        <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+    <div className="os-col">
+      <div className="os-card os-col" style={{ gap: 16 }}>
+        <div className="os-row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="bg-[#00A79D]/10 text-[#00A79D] text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest">Step 02</span>
-              <h2 className="text-xl font-black text-slate-900">Consolidated Purchase Orders</h2>
-            </div>
-            <p className="text-sm text-slate-500 font-medium">Grouped by SKU and Supplier based on <span className="text-[#00A79D] font-bold">{config.consolidationMode.replace('_', ' ')}</span></p>
-            {config.blockIfFrancoNotMet && (
-              <p className="text-[10px] text-orange-600 font-black uppercase tracking-widest mt-1 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                Blocking mode active: Orders without Franco are excluded
-              </p>
-            )}
+            <h2 className="os-title-m" style={{ margin: 0 }}>Consolidated purchase orders</h2>
+            <p className="os-label-s t-secondary" style={{ margin: '4px 0 0' }}>
+              Grouped by SKU and supplier · {MODE_LABEL[config.consolidationMode] ?? config.consolidationMode}
+            </p>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="text-right">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Purchase</p>
-              <p className="text-xl font-black text-slate-900">{totalPurchaseAmount.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}</p>
-            </div>
-            <button className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold bg-white text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 transition-all shadow-sm">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              Export XLSX
-            </button>
-          </div>
+          <OsButton kind="secondary" icon="download">Export XLSX</OsButton>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-widest border-b border-slate-100">
+        <div className="os-row" style={{ gap: 24, alignItems: 'stretch' }}>
+          <div className="os-kpi"><span className="l">Total purchase</span><span className="v">{eur(totalPurchaseAmount)}</span></div>
+          <div className="os-sep-v" />
+          <div className="os-kpi"><span className="l">Matched orders ({fulfillmentRate} %)</span><span className="v">{matchedOrdersCount}</span></div>
+          <div className="os-sep-v" />
+          <div className="os-kpi"><span className="l">Order lines ({lineFulfillmentRate} %)</span><span className="v">{results.length}</span></div>
+        </div>
+        {config.blockIfFrancoNotMet && (
+          <OsAlert color="orange">Blocking mode is active: orders whose supplier does not reach the Franco are excluded.</OsAlert>
+        )}
+      </div>
+
+      <div className="os-card flush">
+        <div className="os-table-wrap">
+          <table className="os-table">
+            <thead>
               <tr>
-                <th className="px-8 py-5">Supplier</th>
-                <th className="px-8 py-5">SKU / Product</th>
-                <th className="px-8 py-5">Quantity</th>
-                <th className="px-8 py-5">Unit Price</th>
-                <th className="px-8 py-5">Total Amount</th>
-                <th className="px-8 py-5 text-right">Status</th>
+                <th>Supplier</th>
+                <th>SKU / Product</th>
+                <th className="r">Quantity</th>
+                <th className="r">Unit price</th>
+                <th className="r">Total amount</th>
+                <th className="r">Franco</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
-              {Object.entries(
-                results.reduce((acc: Record<string, GroupedResult[]>, r: GroupedResult) => {
-                  if (!acc[r.supplierId]) acc[r.supplierId] = [];
-                  acc[r.supplierId].push(r);
-                  return acc;
-                }, {} as Record<string, GroupedResult[]>)
-              ).map(([supplierId, items]: [string, GroupedResult[]]) => {
-                const shippingFee = items.reduce((sum: number, i: GroupedResult) => sum + (i.shippingFee || 0), 0);
-                const totalQuantity = items.reduce((sum: number, i: GroupedResult) => sum + i.totalQuantity, 0);
-                const totalAmount = items.reduce((sum: number, i: GroupedResult) => sum + i.totalAmount, 0) + shippingFee;
+            <tbody>
+              {groups.map(([supplierId, items]) => {
+                const shippingFee = items.reduce((sum, i) => sum + (i.shippingFee || 0), 0);
+                const totalQuantity = items.reduce((sum, i) => sum + i.totalQuantity, 0);
+                const totalAmount = items.reduce((sum, i) => sum + i.totalAmount, 0) + shippingFee;
                 const shippingPerUnit = totalQuantity > 0 ? shippingFee / totalQuantity : 0;
-                
+                const reached = items[0].francoReached;
+
                 return (
                   <React.Fragment key={supplierId}>
-                    {items.map((result: GroupedResult, idx: number) => (
-                      <tr key={`${result.supplierId}-${result.sku}`} className={`transition-colors group ${!result.francoReached ? 'bg-slate-50/50 text-slate-400 opacity-60 grayscale' : 'hover:bg-slate-50'}`}>
-                        <td className="px-8 py-4">
-                          {idx === 0 && (
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${result.francoReached ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
-                                {result.supplierName.charAt(result.supplierName.length - 1)}
-                              </div>
-                              <span className="font-bold">{result.supplierName}</span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-8 py-4">
-                          <div className="flex flex-col">
-                            <span className="font-mono font-bold text-[#00A79D] text-xs">{result.sku}</span>
-                            <span className="font-medium text-slate-600 truncate max-w-[200px]">{result.productName}</span>
+                    {items.map((r, idx) => (
+                      <tr key={`${r.supplierId}-${r.sku}`} className={reached ? undefined : 'muted'}>
+                        <td className="os-body-l" style={{ whiteSpace: 'nowrap' }}>{idx === 0 ? r.supplierName : ''}</td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span className="os-body-m" style={{ color: reached ? 'var(--text-brand)' : undefined }}>{r.sku}</span>
+                            <span style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.productName}</span>
                           </div>
                         </td>
-                        <td className="px-8 py-4 font-black text-slate-700">{result.totalQuantity}</td>
-                        <td className="px-8 py-4 font-medium">{result.unitPrice.toFixed(2)} €</td>
-                        <td className="px-8 py-4 font-black text-slate-900">{result.totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}</td>
-                        <td className="px-8 py-4 text-right">
-                          {result.francoReached ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-black uppercase tracking-tight">
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-                              Reached
-                            </span>
+                        <td className="r t-num">{r.totalQuantity}</td>
+                        <td className="r t-num">{eur(r.unitPrice)}</td>
+                        <td className="r t-num">{eur(r.totalAmount)}</td>
+                        <td className="r">
+                          {r.francoReached ? (
+                            <OsBadge text="Reached" color="green" icon="check" />
+                          ) : config.blockIfFrancoNotMet ? (
+                            <OsBadge text="Blocked" color="red" icon="close" />
                           ) : (
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${config.blockIfFrancoNotMet ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'}`}>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
-                              {config.blockIfFrancoNotMet ? 'Blocked' : 'Below Franco'}
-                            </span>
+                            <OsBadge text="Below Franco" color="grey" />
                           )}
                         </td>
                       </tr>
                     ))}
                     {shippingFee > 0 && (
-                      <tr className="bg-orange-50/30 text-orange-600 border-t border-orange-100">
-                        <td className="px-8 py-3"></td>
-                        <td className="px-8 py-3 font-black text-xs uppercase tracking-widest flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
-                          Shipping Fee
-                        </td>
-                        <td className="px-8 py-3 font-black text-slate-500 text-[10px]">
-                          {shippingPerUnit > 0 && (
-                            <span className="bg-orange-100 px-2 py-0.5 rounded">
-                              {shippingPerUnit.toFixed(2)} € / unit
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-8 py-3"></td>
-                        <td className="px-8 py-3 font-black">{shippingFee.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}</td>
-                        <td className="px-8 py-3 text-right">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-[10px] font-black uppercase tracking-tight">
-                            Fee Applied
+                      <tr className="fee">
+                        <td />
+                        <td>
+                          <span className="os-row t-orange" style={{ flexWrap: 'nowrap' }}>
+                            <OsIcon icon="truck" size="s" />
+                            <span className="os-body-l">Shipping fee</span>
                           </span>
                         </td>
+                        <td className="r t-num t-secondary">{shippingPerUnit > 0 && `${eur(shippingPerUnit)} / unit`}</td>
+                        <td />
+                        <td className="r t-num">{eur(shippingFee)}</td>
+                        <td className="r"><OsBadge text="Fee applied" color="orange" /></td>
                       </tr>
                     )}
-                    {/* Supplier Summary Row */}
-                    <tr className="bg-slate-100/50 border-t-2 border-slate-200 font-black text-slate-900">
-                      <td className="px-8 py-4 text-[10px] uppercase tracking-widest text-slate-400">Total {items[0].supplierName}</td>
-                      <td className="px-8 py-4"></td>
-                      <td className="px-8 py-4">{totalQuantity}</td>
-                      <td className="px-8 py-4 text-xs text-slate-500 font-bold italic">
-                        {shippingFee > 0 ? `Incl. ${shippingPerUnit.toFixed(2)}€ ship/unit` : 'Franco Reached'}
+                    <tr className="subtotal">
+                      <td style={{ whiteSpace: 'nowrap' }}>Total {items[0].supplierName}</td>
+                      <td className="os-body-s t-secondary">
+                        {shippingFee > 0 ? `Incl. ${eur(shippingPerUnit)} shipping per unit` : reached ? 'Franco reached' : ''}
                       </td>
-                      <td className="px-8 py-4 text-[#00A79D] text-base">
-                        {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}
-                      </td>
-                      <td className="px-8 py-4 text-right">
-                        <span className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-tighter ${items[0].francoReached ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white'}`}>
-                          {items[0].francoReached ? 'Franco OK' : 'Below Franco'}
-                        </span>
+                      <td className="r t-num">{totalQuantity}</td>
+                      <td />
+                      <td className="r t-num">{eur(totalAmount)}</td>
+                      <td className="r">
+                        <OsBadge text={reached ? 'Franco OK' : 'Below Franco'} color={reached ? 'green' : 'orange'} />
                       </td>
                     </tr>
                   </React.Fragment>
@@ -245,37 +222,18 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
               })}
             </tbody>
           </table>
-          {results.length === 0 && (
-            <div className="p-20 text-center text-slate-400 italic">
-              No orders match the selected criteria.
-            </div>
-          )}
+          {results.length === 0 && <div className="os-empty">No order matches the selected criteria.</div>}
         </div>
       </div>
 
-      {/* Action Toolbar */}
-      <div className="bg-[#0a1220] rounded-[2.5rem] px-8 py-7 shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-6 border border-white/5">
-        <div className="flex items-center gap-6">
-          <div className="w-14 h-14 bg-[#00A79D]/10 rounded-2xl flex items-center justify-center text-[#00A79D] border border-[#00A79D]/20">
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          </div>
-          <div className="space-y-0.5">
-            <h4 className="text-white font-black text-xl tracking-tight leading-tight">Finalize Orchestration</h4>
-            <p className="text-slate-400 text-[13px] font-medium tracking-tight">
-              Matched: <span className="text-white font-black">{matchedOrdersCount} orders</span> ({fulfillmentRate}%) | <span className="text-white font-black">{results.length} order lines</span> ({lineFulfillmentRate}%)
-            </p>
-          </div>
+      <div className="os-card os-row" style={{ justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <h3 className="os-title-s" style={{ margin: 0 }}>Finalise orchestration</h3>
+          <p className="os-label-s t-secondary" style={{ margin: '4px 0 0' }}>
+            {strategyName ? `${strategyName} · ` : ''}{matchedOrdersCount} orders ({fulfillmentRate} %) · {results.length} order lines ({lineFulfillmentRate} %)
+          </p>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-4">
-          <button 
-            onClick={onNext}
-            className="px-10 py-3 bg-orange-600 text-white rounded-2xl font-black text-sm hover:bg-orange-500 transition-all shadow-xl shadow-orange-600/20 flex items-center gap-3"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            Launch
-          </button>
-        </div>
+        <OsButton icon="play" onClick={onNext}>Launch</OsButton>
       </div>
     </div>
   );

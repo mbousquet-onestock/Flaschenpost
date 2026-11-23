@@ -1,12 +1,13 @@
 
 import { Order, Scenario, Supplier, Product, PurchasePrice } from './types';
 
+// OneStock design system colours (see styles/onestock.css for the full token set)
 export const COLORS = {
-  primary: '#00A79D', // OneStock Teal
-  secondary: '#2D3E50', // Dark Blue
-  accent: '#F39C12', // Orange
-  success: '#27AE60',
-  error: '#E74C3C',
+  primary: '#24bdb0', // primary-1000
+  secondary: '#18244a', // dark-blue-1000, Back-office chrome
+  accent: '#fd7e14', // orange-1000
+  success: '#43a047', // green-1000
+  error: '#f44539', // red-1000
 };
 
 export const SHIPPING_FEE = 80;
