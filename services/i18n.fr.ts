@@ -122,6 +122,13 @@ export const fr: Record<string, string> = {
   'No franco defined': 'Aucun franco défini',
   'Franco {amount} reached': 'Franco de {amount} atteint',
   'Franco {amount}': 'Franco de {amount}',
+  'Franco optimisation: the cheapest unit prices are already the lowest total.':
+    'Optimisation franco : les prix unitaires les plus bas donnent déjà le total le plus faible.',
+  'Franco optimisation: {count} SKU(s) moved to another supplier to reach the francos.':
+    'Optimisation franco : {count} SKU déplacé(s) vers un autre fournisseur pour atteindre les francos.',
+  'Franco optimisation: {count} SKU(s) moved to another supplier, saving {amount} compared with the cheapest unit prices ({baseline}).':
+    'Optimisation franco : {count} SKU déplacé(s) vers un autre fournisseur, soit {amount} d’économie par rapport aux prix unitaires les plus bas ({baseline}).',
+  'Cheapest: {supplier} at {price}, moved for the franco': 'Moins cher : {supplier} à {price}, déplacé pour le franco',
   'No order matches the selected criteria.': 'Aucune commande ne correspond aux critères.',
   'Finalise orchestration': 'Finaliser l’orchestration',
   '{orders} orders · {lines} order lines ({rate} %) · {purchase} purchase lines':

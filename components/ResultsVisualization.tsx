@@ -49,6 +49,20 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
           <div className="os-sep-v" />
           <div className="os-kpi"><span className="l">{t('Priced SKUs ({rate} %)', { rate: pricedRate })}</span><span className="v">{sim.skuCount - sim.unpricedSkus.length} / {sim.skuCount}</span></div>
         </div>
+        {config.consolidationMode === 'cheapest_price_franco' &&
+          (sim.reassigned === 0 ? (
+            <OsAlert>{t('Franco optimisation: the cheapest unit prices are already the lowest total.')}</OsAlert>
+          ) : config.blockIfFrancoNotMet ? (
+            <OsAlert color="green">{t('Franco optimisation: {count} SKU(s) moved to another supplier to reach the francos.', { count: sim.reassigned })}</OsAlert>
+          ) : (
+            <OsAlert color="green">
+              {t('Franco optimisation: {count} SKU(s) moved to another supplier, saving {amount} compared with the cheapest unit prices ({baseline}).', {
+                count: sim.reassigned,
+                amount: eur(sim.baselineAmount - totalPurchaseAmount),
+                baseline: eur(sim.baselineAmount),
+              })}
+            </OsAlert>
+          ))}
         {sim.unpricedSkus.length > 0 && (
           <OsAlert color="orange">
             {t('{count} SKU(s) have no supplier price and are left out: {skus}', { count: sim.unpricedSkus.length, skus: sim.unpricedSkus.slice(0, 8).join(', ') })}
@@ -102,6 +116,11 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span className="os-body-m" style={{ color: reached ? 'var(--text-brand)' : undefined }}>{r.sku}</span>
                             <span style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.productName}</span>
+                            {r.cheapest && (
+                              <span className="os-body-s t-secondary">
+                                {t('Cheapest: {supplier} at {price}, moved for the franco', { supplier: r.cheapest.supplierName, price: eur(r.cheapest.unitPrice) })}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="r t-num">{r.totalQuantity}</td>
