@@ -159,6 +159,15 @@ export const fr: Record<string, string> = {
   '{count} line(s) set to {status}': '{count} ligne(s) passée(s) en {status}',
   '{failed} of {total} line(s) not updated': '{failed} ligne(s) sur {total} non mise(s) à jour',
   'Order lines not moved to {status}:': 'Lignes de commande non passées en {status} :',
+  'All suppliers': 'Tous les fournisseurs',
+  'SKU or name': 'SKU ou nom',
+  'Customer order': 'Commande client',
+  'Order ID': 'N° de commande',
+  From: 'Du',
+  To: 'Au',
+  'Clear filters': 'Effacer les filtres',
+  '{shown} of {total} order(s)': '{shown} sur {total} commande(s)',
+  'No supplier order matches the filters.': 'Aucune commande fournisseur ne correspond aux filtres.',
   'No supplier order yet. Launch a strategy to create them.': 'Aucune commande fournisseur. Lancez une stratégie pour en créer.',
 
   // Supplier prices

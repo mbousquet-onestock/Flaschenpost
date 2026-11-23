@@ -1,9 +1,20 @@
 // Supplier purchase orders created by launching strategies: list, detail and Excel export.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { PurchaseOrder } from '../types';
 import type { DataSource } from '../services/dataSource';
 import { dateTime, money, num, t } from '../services/i18n';
-import { OsAlert, OsBadge, OsButton, OsLoading } from './os';
+import { OsAlert, OsBadge, OsButton, OsField, OsLoading } from './os';
+
+const pad = (n: number) => String(n).padStart(2, '0');
+/** Local calendar day (YYYY-MM-DD) of an ISO date, to compare with date inputs. */
+const day = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+const norm = (s: string) => s.trim().toLowerCase();
+
+type Filters = { supplier: string; item: string; order: string; from: string; to: string };
+const NO_FILTER: Filters = { supplier: '', item: '', order: '', from: '', to: '' };
 
 async function exportOrder(o: PurchaseOrder) {
   const X = await import('xlsx');
@@ -38,6 +49,27 @@ export const PurchaseOrdersTab: React.FC<{ source: DataSource; notice?: string |
   const [orders, setOrders] = useState<PurchaseOrder[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [f, setF] = useState<Filters>(NO_FILTER);
+
+  const suppliers = useMemo(
+    () => [...new Map((orders ?? []).map((o) => [o.supplierId, o.supplierName])).entries()].sort((a, b) => a[1].localeCompare(b[1])),
+    [orders],
+  );
+
+  /** Purchase orders matching every filter: supplier, item (SKU or name), customer order, creation date range. */
+  const shown = useMemo(() => {
+    const item = norm(f.item);
+    const order = norm(f.order);
+    return (orders ?? []).filter((o) => {
+      if (f.supplier && o.supplierId !== f.supplier) return false;
+      if (f.from && day(o.createdAt) < f.from) return false;
+      if (f.to && day(o.createdAt) > f.to) return false;
+      if (item && !o.lines.some((l) => norm(l.sku).includes(item) || norm(l.productName ?? '').includes(item))) return false;
+      if (order && !o.lines.some((l) => l.orderLines.some((x) => norm(x.orderId).includes(order)))) return false;
+      return true;
+    });
+  }, [orders, f]);
+  const filtered = Object.values(f).some(Boolean);
 
   useEffect(() => {
     source.listPurchaseOrders().then(setOrders, (e: Error) => setError(e.message));
@@ -56,6 +88,30 @@ export const PurchaseOrdersTab: React.FC<{ source: DataSource; notice?: string |
             <p className="os-label-s t-secondary" style={{ margin: '4px 0 0' }}>{t('Purchase orders created when strategies are launched, one per supplier.')}</p>
           </div>
         </div>
+        <div className="os-row" style={{ alignItems: 'flex-end', gap: 12, padding: 16, borderBottom: '1px solid var(--border-primary)' }} role="search">
+          <OsField label={t('Supplier')} htmlFor="po-supplier">
+            <select id="po-supplier" className="os-input" style={{ width: 220 }} value={f.supplier} onChange={(e) => setF({ ...f, supplier: e.target.value })}>
+              <option value="">{t('All suppliers')}</option>
+              {suppliers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </OsField>
+          <OsField label={t('Item')} htmlFor="po-item">
+            <input id="po-item" className="os-input" style={{ width: 200 }} placeholder={t('SKU or name')} value={f.item} onChange={(e) => setF({ ...f, item: e.target.value })} />
+          </OsField>
+          <OsField label={t('Customer order')} htmlFor="po-order">
+            <input id="po-order" className="os-input" style={{ width: 180 }} placeholder={t('Order ID')} value={f.order} onChange={(e) => setF({ ...f, order: e.target.value })} />
+          </OsField>
+          <OsField label={t('From')} htmlFor="po-from">
+            <input id="po-from" type="date" className="os-input" style={{ width: 160 }} value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
+          </OsField>
+          <OsField label={t('To')} htmlFor="po-to">
+            <input id="po-to" type="date" className="os-input" style={{ width: 160 }} value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} />
+          </OsField>
+          {filtered && <OsButton kind="tertiary" color="brand" icon="close" onClick={() => setF(NO_FILTER)}>{t('Clear filters')}</OsButton>}
+          <span className="os-label-s t-secondary" style={{ marginLeft: 'auto', paddingBottom: 8 }}>
+            {t('{shown} of {total} order(s)', { shown: shown.length, total: orders?.length ?? 0 })}
+          </span>
+        </div>
         <div className="os-table-wrap">
           <table className="os-table">
             <thead>
@@ -72,7 +128,7 @@ export const PurchaseOrdersTab: React.FC<{ source: DataSource; notice?: string |
               </tr>
             </thead>
             <tbody>
-              {(orders ?? []).map((o) => {
+              {shown.map((o) => {
                 const expanded = open === o.id;
                 return (
                   <React.Fragment key={o.id}>
@@ -150,6 +206,9 @@ export const PurchaseOrdersTab: React.FC<{ source: DataSource; notice?: string |
               })}
               {orders && orders.length === 0 && (
                 <tr><td colSpan={9} className="os-empty">{t('No supplier order yet. Launch a strategy to create them.')}</td></tr>
+              )}
+              {orders && orders.length > 0 && shown.length === 0 && (
+                <tr><td colSpan={9} className="os-empty">{t('No supplier order matches the filters.')}</td></tr>
               )}
             </tbody>
           </table>
