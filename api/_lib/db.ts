@@ -34,6 +34,16 @@ export async function ready(): Promise<postgres.Sql> {
       )`;
     await db`alter table tenant_config add column if not exists data_mode text`;
     await db`
+      create table if not exists suppliers (
+        env text not null,
+        site_id text not null,
+        id text not null,
+        name text not null,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now(),
+        primary key (env, site_id, id)
+      )`;
+    await db`
       create table if not exists strategies (
         env text not null,
         site_id text not null,

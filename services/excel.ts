@@ -16,11 +16,12 @@ const INSTRUCTIONS = [
   ['Supplier purchase prices — import file'],
   [''],
   ['Sheet "Prices": one row per price tier.'],
-  ['  supplier_id  ID of the supplier stock point in OneStock (required)'],
+  ['  supplier_id  ID of the supplier (required): a OneStock supplier stock point, or a new supplier that the import creates'],
   ['  item_id      ID (SKU) of the item in OneStock (required)'],
   ['  min_qty      Quantity from which the price applies, integer ≥ 1 (required). Use 1 for the base price.'],
   ['  unit_price   Purchase unit price excluding tax, in euros (required)'],
-  ['  supplier_name, item_name  Informative only, ignored by the import'],
+  ['  supplier_name  Name given to a supplier created by the import (optional)'],
+  ['  item_name    Informative only, ignored by the import'],
   ['  Degressive prices: add one row per tier, e.g. min_qty 1 → 10.00, min_qty 12 → 9.50, min_qty 24 → 9.00'],
   [''],
   ['Sheet "Franco": one row per supplier (optional).'],
@@ -28,7 +29,12 @@ const INSTRUCTIONS = [
 ];
 
 /** Builds the workbook. With no prices, example rows are generated from the first suppliers and items. */
-export function buildWorkbook(X: XLSX, suppliers: SupplierRef[], items: ItemRef[], prices?: PriceTier[], terms?: SupplierTerm[]) {
+export function buildWorkbook(X: XLSX, knownSuppliers: SupplierRef[], knownItems: ItemRef[], prices?: PriceTier[], terms?: SupplierTerm[]) {
+  // Without suppliers or items yet, the example uses fictitious ones.
+  const suppliers: SupplierRef[] = knownSuppliers.length || prices
+    ? knownSuppliers
+    : [{ id: 'SUPPLIER_A', name: 'Supplier A', franco: null }, { id: 'SUPPLIER_B', name: 'Supplier B', franco: null }];
+  const items: ItemRef[] = knownItems.length || prices ? knownItems : [1, 2, 3, 4].map((i) => ({ id: `SKU-00${i}`, name: `Item ${i}` }));
   const sName = new Map(suppliers.map((s) => [s.id, s.name]));
   const iName = new Map(items.map((i) => [i.id, i.name]));
   let rows: PriceTier[] = prices ?? [];
@@ -63,11 +69,14 @@ export async function downloadWorkbook(filename: string, suppliers: SupplierRef[
 export type ParsedImport = {
   prices: PriceTier[];
   terms: SupplierTerm[];
+  /** Suppliers of the file that do not exist yet: created by the import. */
+  newSuppliers: { id: string; name: string }[];
   errors: string[];
   warnings: string[];
 };
 
 const ALIASES: Record<string, string[]> = {
+  supplier_name: ['supplier_name', 'nom_fournisseur', 'fournisseur_nom', 'raison_sociale'],
   supplier_id: ['supplier_id', 'supplier', 'fournisseur', 'fournisseur_id', 'id_fournisseur', 'stock_point', 'endpoint_id'],
   item_id: ['item_id', 'item', 'sku', 'article', 'article_id', 'id_article', 'ean'],
   min_qty: ['min_qty', 'min_quantity', 'quantity', 'qty', 'qte', 'qte_min', 'quantite', 'quantite_min', 'quantité_min'],
@@ -97,7 +106,7 @@ function rowsOf(X: XLSX, ws: XLSXNS.WorkSheet | undefined) {
   return { rows: raw, cols };
 }
 
-/** Parses an .xlsx/.xls/.csv file. Unknown suppliers or items are reported as errors / warnings. */
+/** Parses an .xlsx/.xls/.csv file. Unknown suppliers are listed in newSuppliers; unknown items are warnings. */
 export async function parseImport(file: File, suppliers: SupplierRef[], items: ItemRef[]): Promise<ParsedImport> {
   const X = await import('xlsx');
   const wb = X.read(await file.arrayBuffer(), { type: 'array' });
@@ -105,6 +114,12 @@ export async function parseImport(file: File, suppliers: SupplierRef[], items: I
   const warnings: string[] = [];
   const supplierIds = new Set(suppliers.map((s) => s.id));
   const itemIds = new Set(items.map((i) => i.id));
+  const newSuppliers = new Map<string, string>();
+  const noteSupplier = (id: string, name: unknown) => {
+    if (supplierIds.has(id)) return;
+    const n = String(name ?? '').trim();
+    if (!newSuppliers.get(id)) newSuppliers.set(id, n);
+  };
 
   const priceSheetName = wb.SheetNames.find((n) => ['prices', 'prix', 'tarifs'].includes(n.toLowerCase())) ?? wb.SheetNames[0];
   const { rows, cols } = rowsOf(X, wb.Sheets[priceSheetName]);
@@ -122,7 +137,8 @@ export async function parseImport(file: File, suppliers: SupplierRef[], items: I
       if (!supplierId || !itemId) return errors.push(t('Prices row {row}: supplier_id and item_id are required', { row: line }));
       if (!Number.isInteger(minQty) || minQty < 1) return errors.push(t('Prices row {row}: min_qty must be an integer ≥ 1', { row: line }));
       if (unitPrice === undefined || unitPrice < 0) return errors.push(t('Prices row {row}: invalid unit_price', { row: line }));
-      if (!supplierIds.has(supplierId)) return errors.push(t('Prices row {row}: unknown supplier "{supplier}"', { row: line, supplier: supplierId }));
+      if (supplierId.length > 128) return errors.push(t('Prices row {row}: supplier ID too long', { row: line }));
+      noteSupplier(supplierId, cols.supplier_name ? r[cols.supplier_name] : '');
       if (itemIds.size && !itemIds.has(itemId)) warnings.push(t('Prices row {row}: item "{item}" not found in the loaded items', { row: line, item: itemId }));
       prices.push({ supplierId, itemId, minQty, unitPrice: Math.round(unitPrice * 10000) / 10000 });
     });
@@ -146,10 +162,10 @@ export async function parseImport(file: File, suppliers: SupplierRef[], items: I
         const raw = r[f.cols.franco];
         const franco = raw === '' || raw === null ? null : num(raw);
         if (franco === undefined || (franco !== null && franco < 0)) return errors.push(t('Franco row {row}: invalid franco', { row: i + 2 }));
-        if (!supplierIds.has(supplierId)) return errors.push(t('Franco row {row}: unknown supplier "{supplier}"', { row: i + 2, supplier: supplierId }));
+        noteSupplier(supplierId, f.cols.supplier_name ? r[f.cols.supplier_name] : '');
         terms.push({ supplierId, franco });
       });
   }
   if (!prices.length && !terms.length && !errors.length) errors.push(t('No price found in the file'));
-  return { prices, terms, errors, warnings: warnings.length > 20 ? [...warnings.slice(0, 20), t('… {count} more', { count: warnings.length - 20 })] : warnings };
+  return { prices, terms, newSuppliers: [...newSuppliers].map(([id, name]) => ({ id, name: name || id })), errors, warnings: warnings.length > 20 ? [...warnings.slice(0, 20), t('… {count} more', { count: warnings.length - 20 })] : warnings };
 }

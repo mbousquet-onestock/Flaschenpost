@@ -11,13 +11,19 @@ import { t } from './i18n';
 export type DataMode = 'static' | 'dynamic';
 export const DEFAULT_MODE: DataMode = import.meta.env.VITE_DATA_MODE === 'dynamic' ? 'dynamic' : 'static';
 
+export type SupplierList = { suppliers: SupplierRef[]; warning?: string };
 export type PricesPayload = { prices?: PriceTier[]; terms?: SupplierTerm[]; replaceSuppliers?: string[] };
 
 export interface DataSource {
   mode: DataMode;
   context: HostContext | null;
   loadDataset(): Promise<Dataset>;
-  listSuppliers(): Promise<SupplierRef[]>;
+  /** OneStock supplier stock points and suppliers entered in the app; `warning` when OneStock could not be read. */
+  listSuppliers(): Promise<SupplierList>;
+  /** Creates or renames suppliers entered in the app (manual entry, Excel import). */
+  saveSuppliers(list: { id: string; name: string }[]): Promise<void>;
+  /** Deletes a supplier entered in the app, with its prices and franco. */
+  deleteSupplier(id: string): Promise<void>;
   listItems(): Promise<ItemRef[]>;
   getPrices(): Promise<{ prices: PriceTier[]; terms: SupplierTerm[] }>;
   savePrices(p: PricesPayload): Promise<void>;
@@ -36,7 +42,7 @@ export interface DataSource {
 const STATIC_KEY = 'wave-orchestrator.static-data';
 const STATIC_STATUSES = ['Placed', 'Out Of Stock', 'Supplier'];
 
-type StaticStore = { prices?: PriceTier[]; terms?: SupplierTerm[]; lineStatuses?: string[]; strategies?: Scenario[] };
+type StaticStore = { prices?: PriceTier[]; terms?: SupplierTerm[]; lineStatuses?: string[]; strategies?: Scenario[]; localSuppliers?: { id: string; name: string }[] };
 
 function readStore(): StaticStore {
   try {
@@ -77,14 +83,33 @@ export const staticSource: DataSource = {
         id: o.id, orderId: o.id, sku: o.sku, quantity: o.quantity, status: o.status, priority: o.priority,
       })),
       items: await this.listItems(),
-      suppliers: await this.listSuppliers(),
+      suppliers: (await this.listSuppliers()).suppliers,
       prices: s.prices ?? defaultPrices(),
       statusOptions: statuses,
     };
   },
   async listSuppliers() {
-    const terms = new Map((store().terms ?? defaultTerms()).map((t) => [t.supplierId, t.franco]));
-    return MOCK_SUPPLIERS.map((s) => ({ id: s.id, name: s.name, rank: s.rank, franco: terms.has(s.id) ? terms.get(s.id)! : null }));
+    const terms = new Map((store().terms ?? defaultTerms()).map((x) => [x.supplierId, x.franco]));
+    const franco = (id: string) => (terms.has(id) ? terms.get(id)! : null);
+    const sample = MOCK_SUPPLIERS.map((s) => ({ id: s.id, name: s.name, rank: s.rank, franco: franco(s.id), source: 'onestock' as const }));
+    const local = (store().localSuppliers ?? [])
+      .filter((l) => !sample.some((s) => s.id === l.id))
+      .map((l) => ({ id: l.id, name: l.name, franco: franco(l.id), source: 'local' as const }));
+    return { suppliers: [...sample, ...local] };
+  },
+  async saveSuppliers(list) {
+    const cur = new Map((store().localSuppliers ?? []).map((l) => [l.id, l]));
+    list.forEach((l) => cur.set(l.id, l));
+    save({ ...store(), localSuppliers: [...cur.values()] });
+  },
+  async deleteSupplier(id) {
+    const s = store();
+    save({
+      ...s,
+      localSuppliers: (s.localSuppliers ?? []).filter((l) => l.id !== id),
+      prices: (s.prices ?? defaultPrices()).filter((p) => p.supplierId !== id),
+      terms: (s.terms ?? defaultTerms()).filter((x) => x.supplierId !== id),
+    });
   },
   async listItems() {
     return MOCK_PRODUCTS.map((p) => ({ id: p.sku, name: p.name }));
@@ -146,7 +171,7 @@ function dynamicSource(ctx: HostContext): DataSource {
     async loadDataset() {
       const [orders, suppliers, prices, settings, items] = await Promise.all([
         api<{ lines: Dataset['lines']; truncated: boolean }>(ctx, 'orders'),
-        source.listSuppliers(),
+        source.listSuppliers().then((r) => r.suppliers),
         source.getPrices(),
         source.getSettings(),
         source.listItems().catch(() => [] as ItemRef[]),
@@ -154,7 +179,13 @@ function dynamicSource(ctx: HostContext): DataSource {
       return { lines: orders.lines, truncated: orders.truncated, suppliers, prices: prices.prices, items, statusOptions: settings.lineStatuses };
     },
     async listSuppliers() {
-      return (await api<{ suppliers: SupplierRef[] }>(ctx, 'suppliers')).suppliers;
+      return api<SupplierList>(ctx, 'suppliers');
+    },
+    async saveSuppliers(list) {
+      await api(ctx, 'suppliers', { method: 'POST', body: { suppliers: list } });
+    },
+    async deleteSupplier(id) {
+      await api(ctx, 'suppliers', { method: 'DELETE', query: { id } });
     },
     listItems() {
       itemsCache ||= (async () => {

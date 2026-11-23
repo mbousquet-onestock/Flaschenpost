@@ -135,8 +135,6 @@ export const fr: Record<string, string> = {
   'Download template': 'Télécharger le modèle',
   'Import Excel': 'Importer un fichier Excel',
   'Loading suppliers and prices': 'Chargement des fournisseurs et des tarifs',
-  'No supplier stock point found. Suppliers are stock points whose type is the supplier type set in the settings.':
-    'Aucun point de stock fournisseur trouvé. Les fournisseurs sont les points de stock dont le type est celui défini dans le paramétrage.',
   'Import preview': 'Aperçu de l’import',
   'Import of {file}': 'Import de {file}',
   '{prices} price tier(s) for {suppliers} supplier(s), {terms} franco value(s).': '{prices} palier(s) de prix pour {suppliers} fournisseur(s), {terms} franco(s).',
@@ -166,17 +164,32 @@ export const fr: Record<string, string> = {
   'Minimum quantity must be an integer ≥ 1.': 'La quantité minimale doit être un entier ≥ 1.',
   'Enter a valid unit price.': 'Saisissez un prix unitaire valide.',
 
+  'Add supplier': 'Ajouter un fournisseur',
+  'Supplier ID': 'ID fournisseur',
+  'Enter a supplier ID (letters, digits, - _ . : / @).': 'Saisissez un ID fournisseur (lettres, chiffres, - _ . : / @).',
+  'The supplier {id} already exists.': 'Le fournisseur {id} existe déjà.',
+  'Supplier {name} added.': 'Fournisseur {name} ajouté.',
+  'Delete the supplier "{name}" with its prices and franco?': 'Supprimer le fournisseur « {name} » avec ses tarifs et son franco ?',
+  'Supplier {name} deleted.': 'Fournisseur {name} supprimé.',
+  'Delete supplier': 'Supprimer le fournisseur',
+  'entered in the app': 'saisi dans l’application',
+  'OneStock supplier stock points could not be read: {error}': 'Les points de stock fournisseurs OneStock n’ont pas pu être lus : {error}',
+  'No supplier yet. Add one, or import an Excel file: the suppliers of the file that do not exist are created.':
+    'Aucun fournisseur pour l’instant. Ajoutez-en un, ou importez un fichier Excel : les fournisseurs du fichier qui n’existent pas sont créés.',
+  '{count} new supplier(s) will be created: {names}.': '{count} nouveau(x) fournisseur(s) sera(ont) créé(s) : {names}.',
+  Export: 'Exporter',
+  Import: 'Importer',
+
   // Excel import messages
+  'Prices row {row}: supplier ID too long': 'Ligne {row} des prix : ID fournisseur trop long',
   'Sheet "{sheet}": missing column(s) {columns}': 'Feuille « {sheet} » : colonne(s) manquante(s) {columns}',
   'Prices row {row}: supplier_id and item_id are required': 'Ligne {row} des prix : supplier_id et item_id sont obligatoires',
   'Prices row {row}: min_qty must be an integer ≥ 1': 'Ligne {row} des prix : min_qty doit être un entier ≥ 1',
   'Prices row {row}: invalid unit_price': 'Ligne {row} des prix : unit_price invalide',
-  'Prices row {row}: unknown supplier "{supplier}"': 'Ligne {row} des prix : fournisseur « {supplier} » inconnu',
   'Prices row {row}: item "{item}" not found in the loaded items': 'Ligne {row} des prix : article « {item} » absent des articles chargés',
   'Duplicate tier {supplier} / {item} / {qty}: the last row wins': 'Palier en double {supplier} / {item} / {qty} : la dernière ligne est retenue',
   'Sheet "Franco": columns supplier_id and franco are required': 'Feuille « Franco » : les colonnes supplier_id et franco sont obligatoires',
   'Franco row {row}: invalid franco': 'Ligne {row} des francos : franco invalide',
-  'Franco row {row}: unknown supplier "{supplier}"': 'Ligne {row} des francos : fournisseur « {supplier} » inconnu',
   'No price found in the file': 'Aucun tarif trouvé dans le fichier',
 
   // Settings

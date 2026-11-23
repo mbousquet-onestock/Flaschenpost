@@ -29,13 +29,17 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
   const [parsed, setParsed] = useState<(ParsedImport & { fileName: string }) | null>(null);
   const [replace, setReplace] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [supplierWarning, setSupplierWarning] = useState<string | undefined>();
+  const [newSupplier, setNewSupplier] = useState<{ id: string; name: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
     setError(null);
     try {
-      const [s, p, it] = await Promise.all([source.listSuppliers(), source.getPrices(), source.listItems().catch(() => [] as ItemRef[])]);
+      const [list, p, it] = await Promise.all([source.listSuppliers(), source.getPrices(), source.listItems().catch(() => [] as ItemRef[])]);
+      const s = list.suppliers;
       setSuppliers(s);
+      setSupplierWarning(list.warning);
       setPrices(p.prices);
       setTerms(p.terms);
       setItems(it);
@@ -126,11 +130,30 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
     }
   };
 
+  const addSupplier = () => {
+    if (!newSupplier) return;
+    const id = newSupplier.id.trim();
+    const name = newSupplier.name.trim() || id;
+    if (!/^[\w.@:/ -]{1,128}$/.test(id)) return setError(t('Enter a supplier ID (letters, digits, - _ . : / @).'));
+    if (suppliers.some((s) => s.id === id)) return setError(t('The supplier {id} already exists.', { id }));
+    run(async () => {
+      await source.saveSuppliers([{ id, name }]);
+      setNewSupplier(null);
+      setSupplierId(id);
+    }, t('Supplier {name} added.', { name }));
+  };
+
+  const removeSupplier = (s: SupplierRef) => {
+    if (!window.confirm(t('Delete the supplier "{name}" with its prices and franco?', { name: s.name }))) return;
+    run(() => source.deleteSupplier(s.id), t('Supplier {name} deleted.', { name: s.name }));
+  };
+
   const confirmImport = () => {
     if (!parsed) return;
     const replaceSuppliers = replace ? [...new Set(parsed.prices.map((p) => p.supplierId))] : [];
     const summary = t('{prices} price tier(s) and {terms} franco value(s) imported.', { prices: parsed.prices.length, terms: parsed.terms.length });
     run(async () => {
+      if (parsed.newSuppliers.length) await source.saveSuppliers(parsed.newSuppliers);
       await source.savePrices({ prices: parsed.prices, terms: parsed.terms, replaceSuppliers });
       setParsed(null);
     }, summary);
@@ -139,6 +162,7 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
   if (loading) return <OsLoading text={t('Loading suppliers and prices')} />;
 
   const importSuppliers = parsed ? new Set(parsed.prices.map((p) => p.supplierId)).size : 0;
+  const selected = suppliers.find((s) => s.id === supplierId);
 
   return (
     <div className="os-col">
@@ -150,21 +174,36 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
           </p>
         </div>
         <div className="os-row">
+          <OsButton kind="secondary" icon="add" onClick={() => setNewSupplier({ id: '', name: '' })}>{t('Add supplier')}</OsButton>
           <OsButton kind="secondary" icon="download" onClick={() => downloadWorkbook('supplier-prices-template.xlsx', suppliers, items)}>
             {t('Download template')}
           </OsButton>
           <OsButton kind="secondary" icon="download" disabled={!prices.length} onClick={() => downloadWorkbook('supplier-prices.xlsx', suppliers, items, prices, terms)}>
-            Export
+            {t('Export')}
           </OsButton>
-          <OsButton icon="file" onClick={() => fileRef.current?.click()} disabled={busy || !suppliers.length}>{t('Import Excel')}</OsButton>
+          <OsButton icon="file" onClick={() => fileRef.current?.click()} disabled={busy}>{t('Import Excel')}</OsButton>
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={onFile} />
         </div>
       </div>
 
       {error && <OsAlert color="red">{error}</OsAlert>}
       {notice && <OsAlert color="green">{notice}</OsAlert>}
-      {!suppliers.length && !error && (
-        <OsAlert color="orange">{t('No supplier stock point found. Suppliers are stock points whose type is the supplier type set in the settings.')}</OsAlert>
+      {supplierWarning && <OsAlert color="orange">{t('OneStock supplier stock points could not be read: {error}', { error: supplierWarning })}</OsAlert>}
+      {!suppliers.length && !error && !newSupplier && (
+        <OsAlert>{t('No supplier yet. Add one, or import an Excel file: the suppliers of the file that do not exist are created.')}</OsAlert>
+      )}
+
+      {newSupplier && (
+        <form className="os-card os-row" style={{ alignItems: 'flex-end', gap: 12 }} onSubmit={(e) => { e.preventDefault(); addSupplier(); }} aria-label={t('Add supplier')}>
+          <OsField label={t('Supplier ID')} htmlFor="ns-id">
+            <input id="ns-id" className="os-input" style={{ width: 220 }} autoFocus value={newSupplier.id} onChange={(e) => setNewSupplier({ ...newSupplier, id: e.target.value })} required />
+          </OsField>
+          <OsField label={t('Name')} htmlFor="ns-name">
+            <input id="ns-name" className="os-input" style={{ width: 280 }} value={newSupplier.name} onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })} />
+          </OsField>
+          <OsButton kind="secondary" onClick={() => setNewSupplier(null)}>{t('Cancel')}</OsButton>
+          <OsButton type="submit" icon="check" disabled={busy}>{t('Add supplier')}</OsButton>
+        </form>
       )}
 
       {parsed && (
@@ -175,6 +214,10 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
           </div>
           <OsAlert color={parsed.errors.length ? 'red' : 'blue'}>
             {t('{prices} price tier(s) for {suppliers} supplier(s), {terms} franco value(s).', { prices: parsed.prices.length, suppliers: importSuppliers, terms: parsed.terms.length })}
+            {parsed.newSuppliers.length > 0 && ' ' + t('{count} new supplier(s) will be created: {names}.', {
+              count: parsed.newSuppliers.length,
+              names: parsed.newSuppliers.slice(0, 6).map((s) => s.name).join(', ') + (parsed.newSuppliers.length > 6 ? '…' : ''),
+            })}
             {parsed.errors.length > 0 && ' ' + t('Fix the errors below and import the file again.')}
           </OsAlert>
           {parsed.errors.length > 0 && (
@@ -192,7 +235,7 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
           <div className="os-row" style={{ justifyContent: 'flex-end' }}>
             <OsButton kind="secondary" onClick={() => setParsed(null)}>{t('Cancel')}</OsButton>
             <OsButton icon="check" disabled={busy || parsed.errors.length > 0 || (!parsed.prices.length && !parsed.terms.length)} onClick={confirmImport}>
-              Import
+              {t('Import')}
             </OsButton>
           </div>
         </section>
@@ -204,10 +247,15 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
             <OsField label={t('Supplier')} htmlFor="pr-supplier">
               <select id="pr-supplier" className="os-input" style={{ minWidth: 260 }} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                 {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.id}) · {t('{count} price(s)', { count: countBySupplier.get(s.id) || 0 })}</option>
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.id}) · {t('{count} price(s)', { count: countBySupplier.get(s.id) || 0 })}{s.source === 'local' ? ` · ${t('entered in the app')}` : ''}
+                  </option>
                 ))}
               </select>
             </OsField>
+            {selected?.source === 'local' && (
+              <OsButton kind="tertiary" color="red" icon="trash" disabled={busy} onClick={() => removeSupplier(selected)}>{t('Delete supplier')}</OsButton>
+            )}
             <OsField label={t('Franco (€)')} htmlFor="pr-franco">
               <div className="os-row" style={{ flexWrap: 'nowrap' }}>
                 <input id="pr-franco" className="os-input num" style={{ width: 140 }} inputMode="decimal" placeholder={t('None')} value={franco} onChange={(e) => setFranco(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveFranco()} />

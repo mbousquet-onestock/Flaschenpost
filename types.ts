@@ -94,6 +94,8 @@ export interface SupplierRef {
   /** Free shipping threshold, null when none is defined. */
   franco: number | null;
   rank?: StockPointRank;
+  /** onestock: supplier stock point of OneStock; local: supplier entered in the app (manual or Excel import). */
+  source?: 'onestock' | 'local';
 }
 
 export interface ItemRef {
