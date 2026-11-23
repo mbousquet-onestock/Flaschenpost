@@ -176,6 +176,8 @@ export interface Dataset {
   prices: PriceTier[];
   /** Order line statuses offered in the execution scenario. */
   statusOptions: string[];
+  /** Sales channels of the site (OneStock GET /sales_channels); empty when unavailable. */
+  salesChannels?: { id: string; name: string }[];
   /** Item weights in kg, for shipping fees per kg. */
   weights?: ItemWeight[];
   truncated?: boolean;

@@ -104,6 +104,7 @@ export const staticSource: DataSource = {
       prices: s.prices ?? defaultPrices(),
       weights: s.weights ?? defaultWeights(),
       statusOptions: statuses,
+      salesChannels: [{ id: 'E-commerce', name: 'E-commerce France' }, { id: 'Retail', name: 'Retail stores' }],
     };
   },
   async listSuppliers() {
@@ -219,14 +220,19 @@ function dynamicSource(ctx: HostContext): DataSource {
     mode: 'dynamic',
     context: ctx,
     async loadDataset() {
-      const [orders, suppliers, prices, settings, items] = await Promise.all([
+      const [orders, suppliers, prices, settings, items, salesChannels] = await Promise.all([
         api<{ lines: Dataset['lines']; truncated: boolean }>(ctx, 'orders'),
         source.listSuppliers().then((r) => r.suppliers),
         source.getPrices(),
         source.getSettings(),
         source.listItems().catch(() => [] as ItemRef[]),
+        // Optional: without it, the channels found in the orders are offered.
+        api<{ salesChannels: { id: string; name: string }[] }>(ctx, 'sales-channels').then((r) => r.salesChannels, () => []),
       ]);
-      return { lines: orders.lines, truncated: orders.truncated, suppliers, prices: prices.prices, weights: prices.weights, items, statusOptions: settings.lineStatuses };
+      return {
+        lines: orders.lines, truncated: orders.truncated, suppliers, prices: prices.prices, weights: prices.weights, items,
+        statusOptions: settings.lineStatuses, salesChannels,
+      };
     },
     async listSuppliers() {
       return api<SupplierList>(ctx, 'suppliers');

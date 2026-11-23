@@ -12,7 +12,7 @@ for (const f of ['.env.local', '.env']) {
 }
 
 const PORT = Number(process.env.API_PORT) || 3001;
-const routes = ['config', 'login', 'suppliers', 'items', 'orders', 'prices', 'strategies', 'purchase-orders'];
+const routes = ['config', 'login', 'suppliers', 'items', 'orders', 'prices', 'strategies', 'purchase-orders', 'sales-channels'];
 
 createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://localhost:${PORT}`);

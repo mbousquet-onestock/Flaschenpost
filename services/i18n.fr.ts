@@ -86,7 +86,7 @@ export const fr: Record<string, string> = {
   'Order type': 'Type de commande',
   Customer: 'Client',
   'Contains one of the values; separate several values with commas.': 'Contient l’une des valeurs ; séparez plusieurs valeurs par des virgules.',
-  'No sales channel in the loaded orders': 'Aucun canal de vente dans les commandes chargées',
+  'No sales channel found': 'Aucun canal de vente trouvé',
   'No order type in the loaded orders': 'Aucun type de commande dans les commandes chargées',
   '(to fill in)': '(à renseigner)',
   'Name or email': 'Nom ou e-mail',

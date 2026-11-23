@@ -9,8 +9,8 @@ interface OrchestrationScenariosProps {
   /** Order line statuses that can be selected (from the settings). */
   statusOptions: string[];
   suppliers: SupplierRef[];
-  /** Sales channels and order types found in the loaded order lines. */
-  channelOptions: string[];
+  /** Sales channels of the site (id + name) and order types found in the loaded order lines. */
+  channelOptions: { id: string; name: string }[];
   typeOptions: string[];
 }
 
@@ -133,7 +133,7 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
   const add = (c: Condition) => {
     if (c === 'status') onChange({ ...config, statuses: statusOptions.length ? [...statusOptions] : config.statuses });
     if (c === 'date') onChange({ ...config, orderDate: { mode: 'relative', fromDays: 7, toDays: 1 } });
-    if (c === 'channel') onChange({ ...config, salesChannels: [...channelOptions] });
+    if (c === 'channel') onChange({ ...config, salesChannels: channelOptions.map((o) => o.id) });
     if (c === 'otype') onChange({ ...config, orderTypes: [...typeOptions] });
     if (c === 'customer') onChange({ ...config, customerQuery: '' });
     if (c === 'item') onChange({ ...config, itemQuery: '' });
@@ -167,13 +167,16 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
     return next.length ? next : list;
   };
 
-  const checkList = (title: string, options: string[], selected: string[], set: (next: string[]) => void, empty: string) => (
+  const checkList = (title: string, options: { id: string; name: string }[], selected: string[], set: (next: string[]) => void, empty: string) => (
     <>
       <div className="os-float-head"><span className="os-body-l t-secondary">{title}</span></div>
       {options.length === 0 && <div className="os-opt t-secondary">{empty}</div>}
       <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-        {options.map((v) => (
-          <div key={v}><OsCheckbox checked={selected.includes(v)} onChange={() => set(toggleIn(selected, v))} label={v} /></div>
+        {options.map((o) => (
+          <div key={o.id}>
+            <OsCheckbox checked={selected.includes(o.id)} onChange={() => set(toggleIn(selected, o.id))}
+              label={o.name === o.id ? o.id : <span style={{ display: 'flex', flexDirection: 'column' }}><span className="os-label-s">{o.name}</span><span className="os-body-s t-secondary">{o.id}</span></span>} />
+          </div>
         ))}
       </div>
     </>
@@ -248,14 +251,15 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
         )}
         {config.salesChannels && (
           <div className="os-row">
-            {tag('channel', 'Order information', config.salesChannels.join(', ') || t('None'),
-              checkList(t('Sales channel'), channelOptions, config.salesChannels, (salesChannels) => onChange({ ...config, salesChannels }), t('No sales channel in the loaded orders')), 260)}
+            {tag('channel', 'Order information',
+              config.salesChannels.map((id) => channelOptions.find((o) => o.id === id)?.name ?? id).join(', ') || t('None'),
+              checkList(t('Sales channel'), channelOptions, config.salesChannels, (salesChannels) => onChange({ ...config, salesChannels }), t('No sales channel found')), 260)}
           </div>
         )}
         {config.orderTypes && (
           <div className="os-row">
             {tag('otype', 'Order information', config.orderTypes.join(', ') || t('None'),
-              checkList(t('Order type'), typeOptions, config.orderTypes, (orderTypes) => onChange({ ...config, orderTypes }), t('No order type in the loaded orders')), 260)}
+              checkList(t('Order type'), typeOptions.map((v) => ({ id: v, name: v })), config.orderTypes, (orderTypes) => onChange({ ...config, orderTypes }), t('No order type in the loaded orders')), 260)}
           </div>
         )}
         {config.customerQuery !== undefined && (

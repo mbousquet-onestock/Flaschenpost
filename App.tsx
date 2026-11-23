@@ -28,6 +28,15 @@ const pad = (n: number) => String(n).padStart(2, '0');
 /** "YYYY-MM-DD HH:MM", the format shown in the strategy list. */
 const stamp = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
+/** Sales channels of the site (GET /sales_channels), plus channels found in the orders that are not in that list. */
+function salesChannelOptions(data: Dataset): { id: string; name: string }[] {
+  const known = data.salesChannels ?? [];
+  const extra = [...new Set(data.lines.map((l) => l.channel).filter((x): x is string => !!x))]
+    .filter((id) => !known.some((c) => c.id === id))
+    .map((id) => ({ id, name: id }));
+  return [...known, ...extra.sort((a, b) => a.id.localeCompare(b.id))];
+}
+
 /** Next execution of a schedule from now, in the browser's time zone. */
 function nextRun(schedule: { days: number[]; times: string[] }): string | undefined {
   const now = new Date();
@@ -278,7 +287,7 @@ const App: React.FC = () => {
           {dataState ??
             (currentStep === Step.OrchestrationScenarios ? (
               <OrchestrationScenarios config={orchestrationConfig} onChange={setOrchestrationConfig} statusOptions={data!.statusOptions} suppliers={data!.suppliers}
-                channelOptions={[...new Set(data!.lines.map((l) => l.channel).filter((x): x is string => !!x))].sort()}
+                channelOptions={salesChannelOptions(data!)}
                 typeOptions={[...new Set(data!.lines.flatMap((l) => l.orderTypes ?? []))].sort()} />
             ) : (
               <ResultsVisualization strategyName={strategyName} config={orchestrationConfig} data={data!} onNext={launch} launching={launching} />
