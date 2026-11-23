@@ -61,7 +61,8 @@ export const MOCK_ORDERS: Order[] = Array.from({ length: 200 }).map((_, i) => {
     priority: (i % 3 === 0 ? 'P1' : i % 3 === 1 ? 'P2' : 'P3') as 'P1' | 'P2' | 'P3',
     sku: product.sku,
     quantity: 1 + Math.floor(Math.random() * 12),
-    date: '2023-10-25',
+    // Spread over the last 10 days so that the order date condition can be tried.
+    date: new Date(Date.now() - (i % 10) * 86_400_000).toISOString().slice(0, 10),
     channel: i % 2 === 0 ? 'Retail' : 'E-commerce',
     status: statusOptions[Math.floor(Math.random() * statusOptions.length)],
   };

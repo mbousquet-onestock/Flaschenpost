@@ -13,7 +13,7 @@ export const GET = handle(async (req) => {
   const statuses = cfg?.line_statuses ?? [];
   if (!statuses.length) throw new HttpError(409, 'No order line status is configured for this site');
 
-  const lines: { id: string; orderId: string; date: number | null; sku: string; quantity: number; status: string; channel?: string }[] = [];
+  const lines: { id: string; orderId: string; date: number | string | null; sku: string; quantity: number; status: string; channel?: string }[] = [];
   let truncated = false;
   for (let page = 0; page < MAX_PAGES; page++) {
     const r = await call(t, '/orders', {
@@ -36,7 +36,7 @@ export const GET = handle(async (req) => {
         lines.push({
           id: String(g.id),
           orderId: String(o.id),
-          date: typeof o.date === 'number' ? o.date : null,
+          date: typeof o.date === 'number' || typeof o.date === 'string' ? o.date : null,
           sku: String(g.item_id),
           quantity: Number(g.quantity) || 0,
           status: String(g.state),

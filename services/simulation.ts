@@ -4,7 +4,7 @@
 //    (dearer unit price, but franco reached or lower shipping fees) while the total purchase cost
 //    (goods + shipping fees) decreases. When a supplier's franco is not reached,
 // its shipping fee is added: a fixed amount, an amount per kg (item weights) or an amount per unit.
-import type { Dataset, NewPurchaseOrder, OrchestrationConfig, PriceTier, PurchaseOrderSource, ShippingMode } from '../types';
+import type { Dataset, NewPurchaseOrder, OrchestrationConfig, OrderDateFilter, PriceTier, PurchaseOrderSource, ShippingMode } from '../types';
 
 /** Shipping fee of a supplier whose franco is not reached. */
 export interface SupplierShipping {
@@ -59,9 +59,38 @@ export function unitPriceFor(tiers: PriceTier[], quantity: number): number | und
   return (sorted.find((t) => quantity >= t.minQty) ?? sorted[sorted.length - 1]).unitPrice;
 }
 
+const DAY = 86_400_000;
+
+/** Time (ms) of an order date: Unix timestamp in seconds or milliseconds, or an ISO / YYYY-MM-DD string. */
+export function orderTime(date: number | string | null | undefined): number | undefined {
+  if (date === null || date === undefined || date === '') return undefined;
+  if (typeof date === 'number') return date < 1e12 ? date * 1000 : date;
+  const ms = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00`).getTime() : Date.parse(date);
+  return isNaN(ms) ? undefined : ms;
+}
+
+/** [start, end) in ms of an order date condition, in the browser's time zone. */
+export function orderDateRange(f: OrderDateFilter, now = new Date()): [number, number] {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (f.mode === 'relative') {
+    const a = Math.max(f.fromDays, f.toDays);
+    const b = Math.min(f.fromDays, f.toDays);
+    return [today - a * DAY, today - b * DAY + DAY];
+  }
+  const start = f.from ? new Date(`${f.from}T00:00:00`).getTime() : -Infinity;
+  const end = f.to ? new Date(`${f.to}T00:00:00`).getTime() + DAY : Infinity;
+  return [start, end];
+}
+
 export function simulate(data: Dataset, config: OrchestrationConfig): SimulationResult {
+  const range = config.orderDate ? orderDateRange(config.orderDate) : undefined;
   const lines = data.lines.filter((l) => {
     if (config.statuses.length && !config.statuses.includes(l.status)) return false;
+    if (range) {
+      // Lines without an order date are left out when a date condition is set.
+      const ms = orderTime(l.date);
+      if (ms === undefined || ms < range[0] || ms >= range[1]) return false;
+    }
     if (!l.priority || !config.stockPointRank) return true;
     if (config.stockPointRank === 'P1') return l.priority === 'P1';
     if (config.stockPointRank === 'P2') return l.priority !== 'P3';

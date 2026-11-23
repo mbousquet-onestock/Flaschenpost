@@ -34,7 +34,18 @@ export interface OrchestrationConfig {
   blockIfFrancoNotMet: boolean;
   /** Suppliers to use; undefined = no supplier condition, [] = all suppliers. */
   selectedSupplierIds?: string[];
+  /** Order creation date; undefined = no date condition. */
+  orderDate?: OrderDateFilter;
 }
+
+/**
+ * Order creation date condition.
+ * relative: from D-fromDays to D-toDays included (D = day of the run), e.g. 7 → 1 for "D-7 to D-1".
+ * absolute: from / to days (YYYY-MM-DD) included; either may be empty.
+ */
+export type OrderDateFilter =
+  | { mode: 'relative'; fromDays: number; toDays: number }
+  | { mode: 'absolute'; from?: string; to?: string };
 
 export interface Condition {
   id: string;
@@ -139,6 +150,8 @@ export interface OrderLine {
   quantity: number;
   status: string;
   priority?: 'P1' | 'P2' | 'P3';
+  /** Creation date of the order: Unix timestamp (s or ms) or ISO date. */
+  date?: number | string | null;
 }
 
 export interface Dataset {
