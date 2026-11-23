@@ -1,6 +1,7 @@
 // OneStock Design System — React recreations of the Os* components used by Wave Orchestrator.
 // Styles live in styles/onestock.css; icons are the official OneStock SVGs in public/icons.
 import React, { useEffect, useRef } from 'react';
+import { t } from '../../services/i18n';
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
@@ -73,7 +74,7 @@ export const OsTag: React.FC<{
     {draggable && <span className="os-tag-btn"><OsIcon icon="drag" size="s" /></span>}
     <span>{children}</span>
     {onClose && (
-      <button type="button" className="os-tag-btn" aria-label="Remove" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+      <button type="button" className="os-tag-btn" aria-label={t('Remove')} onClick={(e) => { e.stopPropagation(); onClose(); }}>
         <OsIcon icon="close" size="s" />
       </button>
     )}

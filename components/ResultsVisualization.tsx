@@ -2,8 +2,9 @@ import React, { useMemo } from 'react';
 import { Dataset, OrchestrationConfig } from '../types';
 import { GroupedResult, simulate } from '../services/simulation';
 import { OsAlert, OsBadge, OsButton, OsIcon } from './os';
+import { money, t } from '../services/i18n';
 
-const eur = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'EUR' });
+const eur = (n: number) => money(n);
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 const MODE_LABEL: Record<string, string> = { cheapest_price: 'Cheapest purchase price', cheapest_price_franco: 'Price and Franco optimisation' };
 
@@ -32,31 +33,31 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
       <div className="os-card os-col" style={{ gap: 16 }}>
         <div className="os-row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h2 className="os-title-m" style={{ margin: 0 }}>Consolidated purchase orders</h2>
+            <h2 className="os-title-m" style={{ margin: 0 }}>{t('Consolidated purchase orders')}</h2>
             <p className="os-label-s t-secondary" style={{ margin: '4px 0 0' }}>
-              Grouped by SKU and supplier · {MODE_LABEL[config.consolidationMode] ?? config.consolidationMode}
+              {t('Grouped by SKU and supplier')} · {t(MODE_LABEL[config.consolidationMode] ?? config.consolidationMode)}
             </p>
           </div>
-          <OsButton kind="secondary" icon="download">Export XLSX</OsButton>
+          <OsButton kind="secondary" icon="download">{t('Export XLSX')}</OsButton>
         </div>
         <div className="os-row" style={{ gap: 24, alignItems: 'stretch' }}>
-          <div className="os-kpi"><span className="l">Total purchase</span><span className="v">{eur(totalPurchaseAmount)}</span></div>
+          <div className="os-kpi"><span className="l">{t('Total purchase')}</span><span className="v">{eur(totalPurchaseAmount)}</span></div>
           <div className="os-sep-v" />
-          <div className="os-kpi"><span className="l">Matched order lines ({fulfillmentRate} %)</span><span className="v">{sim.matchedLines}</span></div>
+          <div className="os-kpi"><span className="l">{t('Matched order lines ({rate} %)', { rate: fulfillmentRate })}</span><span className="v">{sim.matchedLines}</span></div>
           <div className="os-sep-v" />
-          <div className="os-kpi"><span className="l">Orders</span><span className="v">{sim.matchedOrders}</span></div>
+          <div className="os-kpi"><span className="l">{t('Orders')}</span><span className="v">{sim.matchedOrders}</span></div>
           <div className="os-sep-v" />
-          <div className="os-kpi"><span className="l">Priced SKUs ({pricedRate} %)</span><span className="v">{sim.skuCount - sim.unpricedSkus.length} / {sim.skuCount}</span></div>
+          <div className="os-kpi"><span className="l">{t('Priced SKUs ({rate} %)', { rate: pricedRate })}</span><span className="v">{sim.skuCount - sim.unpricedSkus.length} / {sim.skuCount}</span></div>
         </div>
         {sim.unpricedSkus.length > 0 && (
           <OsAlert color="orange">
-            {sim.unpricedSkus.length} SKU(s) have no supplier price and are left out: {sim.unpricedSkus.slice(0, 8).join(', ')}
+            {t('{count} SKU(s) have no supplier price and are left out: {skus}', { count: sim.unpricedSkus.length, skus: sim.unpricedSkus.slice(0, 8).join(', ') })}
             {sim.unpricedSkus.length > 8 ? '…' : ''}
           </OsAlert>
         )}
-        {data.truncated && <OsAlert color="orange">Only the first 2,000 orders were loaded.</OsAlert>}
+        {data.truncated && <OsAlert color="orange">{t('Only the first 2,000 orders were loaded.')}</OsAlert>}
         {config.blockIfFrancoNotMet && (
-          <OsAlert color="orange">Blocking mode is active: orders whose supplier does not reach the Franco are excluded.</OsAlert>
+          <OsAlert color="orange">{t('Blocking mode is active: orders whose supplier does not reach the Franco are excluded.')}</OsAlert>
         )}
       </div>
 
@@ -65,12 +66,12 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
           <table className="os-table">
             <thead>
               <tr>
-                <th>Supplier</th>
-                <th>SKU / Product</th>
-                <th className="r">Quantity</th>
-                <th className="r">Unit price</th>
-                <th className="r">Total amount</th>
-                <th className="r">Franco</th>
+                <th>{t('Supplier')}</th>
+                <th>{t('SKU / Product')}</th>
+                <th className="r">{t('Quantity')}</th>
+                <th className="r">{t('Unit price')}</th>
+                <th className="r">{t('Total amount')}</th>
+                <th className="r">{t('Franco')}</th>
               </tr>
             </thead>
             <tbody>
@@ -98,11 +99,11 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                         <td className="r t-num">{eur(r.totalAmount)}</td>
                         <td className="r">
                           {r.francoReached ? (
-                            <OsBadge text="Reached" color="green" icon="check" />
+                            <OsBadge text={t('Reached')} color="green" icon="check" />
                           ) : config.blockIfFrancoNotMet ? (
-                            <OsBadge text="Blocked" color="red" icon="close" />
+                            <OsBadge text={t('Blocked')} color="red" icon="close" />
                           ) : (
-                            <OsBadge text="Below Franco" color="grey" />
+                            <OsBadge text={t('Below Franco')} color="grey" />
                           )}
                         </td>
                       </tr>
@@ -113,25 +114,25 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                         <td>
                           <span className="os-row t-orange" style={{ flexWrap: 'nowrap' }}>
                             <OsIcon icon="truck" size="s" />
-                            <span className="os-body-l">Shipping fee</span>
+                            <span className="os-body-l">{t('Shipping fee')}</span>
                           </span>
                         </td>
-                        <td className="r t-num t-secondary">{shippingPerUnit > 0 && `${eur(shippingPerUnit)} / unit`}</td>
+                        <td className="r t-num t-secondary">{shippingPerUnit > 0 && t('{amount} / unit', { amount: eur(shippingPerUnit) })}</td>
                         <td />
                         <td className="r t-num">{eur(shippingFee)}</td>
-                        <td className="r"><OsBadge text="Fee applied" color="orange" /></td>
+                        <td className="r"><OsBadge text={t('Fee applied')} color="orange" /></td>
                       </tr>
                     )}
                     <tr className="subtotal">
                       <td style={{ whiteSpace: 'nowrap' }}>Total {items[0].supplierName}</td>
                       <td className="os-body-s t-secondary">
-                        {shippingFee > 0 ? `Incl. ${eur(shippingPerUnit)} shipping per unit` : noFranco ? 'No franco defined' : reached ? `Franco ${eur(items[0].franco!)} reached` : `Franco ${eur(items[0].franco!)}`}
+                        {shippingFee > 0 ? t('Incl. {amount} shipping per unit', { amount: eur(shippingPerUnit) }) : noFranco ? t('No franco defined') : reached ? t('Franco {amount} reached', { amount: eur(items[0].franco!) }) : t('Franco {amount}', { amount: eur(items[0].franco!) })}
                       </td>
                       <td className="r t-num">{totalQuantity}</td>
                       <td />
                       <td className="r t-num">{eur(totalAmount)}</td>
                       <td className="r">
-                        <OsBadge text={reached ? 'Franco OK' : 'Below Franco'} color={reached ? 'green' : 'orange'} />
+                        <OsBadge text={reached ? t('Franco OK') : t('Below Franco')} color={reached ? 'green' : 'orange'} />
                       </td>
                     </tr>
                   </React.Fragment>
@@ -139,18 +140,18 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
               })}
             </tbody>
           </table>
-          {results.length === 0 && <div className="os-empty">No order matches the selected criteria.</div>}
+          {results.length === 0 && <div className="os-empty">{t('No order matches the selected criteria.')}</div>}
         </div>
       </div>
 
       <div className="os-card os-row" style={{ justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <h3 className="os-title-s" style={{ margin: 0 }}>Finalise orchestration</h3>
+          <h3 className="os-title-s" style={{ margin: 0 }}>{t('Finalise orchestration')}</h3>
           <p className="os-label-s t-secondary" style={{ margin: '4px 0 0' }}>
-            {strategyName ? `${strategyName} · ` : ''}{sim.matchedOrders} orders · {sim.matchedLines} order lines ({fulfillmentRate} %) · {results.length} purchase lines
+            {strategyName ? `${strategyName} · ` : ''}{t('{orders} orders · {lines} order lines ({rate} %) · {purchase} purchase lines', { orders: sim.matchedOrders, lines: sim.matchedLines, rate: fulfillmentRate, purchase: results.length })}
           </p>
         </div>
-        <OsButton icon="play" onClick={onNext}>Launch</OsButton>
+        <OsButton icon="play" onClick={onNext}>{t('Launch')}</OsButton>
       </div>
     </div>
   );

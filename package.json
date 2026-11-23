@@ -11,7 +11,8 @@
     "build:dynamic": "tsc && vite build --mode dynamic",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "template": "tsx scripts/build-template.ts"
+    "template": "tsx scripts/build-template.ts",
+    "i18n:check": "tsx scripts/check-i18n.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Scenario } from '../types';
 import { OsAlert, OsBadge, OsButton, OsColor, OsIcon, OsSegmentedControl, OsTag } from './os';
+import { LOCALE, t } from '../services/i18n';
 
 interface StrategyDashboardProps {
   scenarios: Scenario[];
@@ -13,21 +14,17 @@ interface StrategyDashboardProps {
   loading?: boolean;
 }
 
-const DAYS = [
-  { label: 'Mon', full: 'Monday', value: 1 },
-  { label: 'Tue', full: 'Tuesday', value: 2 },
-  { label: 'Wed', full: 'Wednesday', value: 3 },
-  { label: 'Thu', full: 'Thursday', value: 4 },
-  { label: 'Fri', full: 'Friday', value: 5 },
-  { label: 'Sat', full: 'Saturday', value: 6 },
-  { label: 'Sun', full: 'Sunday', value: 0 },
-];
+/** Day names in the interface locale (Monday first). 2024-01-01 is a Monday. */
+const DAYS = [1, 2, 3, 4, 5, 6, 0].map((value, i) => {
+  const d = new Date(2024, 0, 1 + i);
+  return { value, label: d.toLocaleDateString(LOCALE, { weekday: 'short' }), full: d.toLocaleDateString(LOCALE, { weekday: 'long' }) };
+});
 
 const PRESETS: { key: 'weekdays' | 'weekends' | 'all' | 'clear'; label: string }[] = [
-  { key: 'weekdays', label: 'Weekdays' },
-  { key: 'weekends', label: 'Weekends' },
-  { key: 'all', label: 'Every day' },
-  { key: 'clear', label: 'Clear' },
+  { key: 'weekdays', label: t('Weekdays') },
+  { key: 'weekends', label: t('Weekends') },
+  { key: 'all', label: t('Every day') },
+  { key: 'clear', label: t('Clear') },
 ];
 
 const STATUS_COLOR: Record<string, OsColor> = { Active: 'green', Scheduled: 'blue', Draft: 'grey' };
@@ -77,14 +74,14 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
     <div className="os-card flush">
       <div className="os-card-head" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <div>
-          <h2 className="os-title-m" style={{ margin: 0 }}>Saved orchestration strategies</h2>
+          <h2 className="os-title-m" style={{ margin: 0 }}>{t('Saved orchestration strategies')}</h2>
           <p className="os-label-s t-secondary" style={{ margin: '4px 0 0' }}>
-            Manage, edit or launch pre-configured fulfilment workflows.
+            {t('Manage, edit or launch pre-configured fulfilment workflows.')}
           </p>
         </div>
         <div className="os-row">
-          <OsButton kind="secondary" icon="time">Execution history</OsButton>
-          <OsButton icon="add" onClick={onCreateNew}>New strategy</OsButton>
+          <OsButton kind="secondary" icon="time">{t('Execution history')}</OsButton>
+          <OsButton icon="add" onClick={onCreateNew}>{t('New strategy')}</OsButton>
         </div>
       </div>
 
@@ -92,13 +89,13 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
         <table className="os-table">
           <thead>
             <tr>
-              <th>Strategy name</th>
-              <th className="r">Orders</th>
-              <th className="r">Items</th>
-              <th>Status</th>
-              <th>Last run</th>
-              <th>Next run</th>
-              <th className="r">Actions</th>
+              <th>{t('Strategy name')}</th>
+              <th className="r">{t('Orders')}</th>
+              <th className="r">{t('Items')}</th>
+              <th>{t('Status')}</th>
+              <th>{t('Last run')}</th>
+              <th>{t('Next run')}</th>
+              <th className="r">{t('Actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -113,7 +110,7 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                           <input
                             className="os-input"
                             value={tempName}
-                            aria-label="Strategy name"
+                            aria-label={t('Strategy name')}
                             autoFocus
                             onChange={(e) => setTempName(e.target.value)}
                             onKeyDown={(e) => {
@@ -121,7 +118,7 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                               if (e.key === 'Escape') setEditingNameId(null);
                             }}
                           />
-                          <OsButton kind="tertiary" color="brand" round icon="check" aria-label="Save name" onClick={() => handleSaveName(strategy.id)} />
+                          <OsButton kind="tertiary" color="brand" round icon="check" aria-label={t('Save name')} onClick={() => handleSaveName(strategy.id)} />
                         </div>
                       ) : (
                         <div className="os-row" style={{ flexWrap: 'nowrap', gap: 4 }}>
@@ -135,8 +132,8 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                             kind="tertiary"
                             round
                             icon="edit"
-                            title="Rename"
-                            aria-label="Rename"
+                            title={t('Rename')}
+                            aria-label={t('Rename')}
                             onClick={() => { setEditingNameId(strategy.id); setTempName(strategy.name); }}
                           />
                         </div>
@@ -145,27 +142,27 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                     <td className="r t-num">{strategy.metrics.orderCount}</td>
                     <td className="r t-num">{strategy.metrics.itemCount}</td>
                     <td>
-                      {strategy.status ? <OsBadge text={strategy.status} color={STATUS_COLOR[strategy.status] ?? 'grey'} /> : <span className="t-disabled">—</span>}
+                      {strategy.status ? <OsBadge text={t(strategy.status)} color={STATUS_COLOR[strategy.status] ?? 'grey'} /> : <span className="t-disabled">—</span>}
                     </td>
-                    <td className="t-num" style={{ whiteSpace: 'nowrap' }}>{formatDate(strategy.lastExecuted) ?? <span className="t-secondary">Never</span>}</td>
+                    <td className="t-num" style={{ whiteSpace: 'nowrap' }}>{formatDate(strategy.lastExecuted) ?? <span className="t-secondary">{t('Never')}</span>}</td>
                     <td className="t-num" style={{ whiteSpace: 'nowrap' }}>
-                      {formatDate(strategy.nextExecution) ?? <span className="t-secondary">{strategy.status === 'Active' ? 'Pending' : 'Manual'}</span>}
+                      {formatDate(strategy.nextExecution) ?? <span className="t-secondary">{strategy.status === 'Active' ? t('Pending') : t('Manual')}</span>}
                     </td>
                     <td className="r">
                       <div className="os-row" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap', gap: 4 }}>
-                        <OsButton kind="tertiary" round icon="edit" title="Edit logic" aria-label="Edit logic" onClick={() => onEdit(strategy)} />
+                        <OsButton kind="tertiary" round icon="edit" title={t('Edit logic')} aria-label={t('Edit logic')} onClick={() => onEdit(strategy)} />
                         <OsButton
                           kind="tertiary"
                           round
                           icon="time"
-                          title="Schedule"
-                          aria-label="Schedule"
+                          title={t('Schedule')}
+                          aria-label={t('Schedule')}
                           aria-expanded={scheduleOpen}
                           className={scheduleOpen ? 'brand' : undefined}
                           onClick={() => toggleSchedule(strategy)}
                         />
-                        <OsButton kind="tertiary" color="red" round icon="trash" title="Delete" aria-label="Delete" onClick={() => onDelete(strategy)} />
-                        <OsButton kind="secondary" icon="play" onClick={() => onSelect(strategy)}>Simulate</OsButton>
+                        <OsButton kind="tertiary" color="red" round icon="trash" title={t('Delete')} aria-label={t('Delete')} onClick={() => onDelete(strategy)} />
+                        <OsButton kind="secondary" icon="play" onClick={() => onSelect(strategy)}>{t('Simulate')}</OsButton>
                       </div>
                     </td>
                   </tr>
@@ -176,13 +173,13 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                         <div className="os-card os-col" style={{ gap: 16 }}>
                           <div className="os-row" style={{ gap: 12 }}>
                             <OsIcon icon="time" className="t-secondary" />
-                            <h3 className="os-title-s" style={{ margin: 0 }}>Execution schedule</h3>
+                            <h3 className="os-title-s" style={{ margin: 0 }}>{t('Execution schedule')}</h3>
                           </div>
 
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
                             <div className="os-col" style={{ gap: 8 }}>
                               <div className="os-row" style={{ justifyContent: 'space-between' }}>
-                                <span className="os-label-l">Execution days</span>
+                                <span className="os-label-l">{t('Execution days')}</span>
                                 <div className="os-row" style={{ gap: 0 }}>
                                   {PRESETS.map((p) => (
                                     <OsButton key={p.key} kind="tertiary" color="brand" onClick={() => setDayPreset(p.key)}>{p.label}</OsButton>
@@ -197,25 +194,25 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                             </div>
 
                             <div className="os-col" style={{ gap: 8 }}>
-                              <span className="os-label-l">Execution times</span>
+                              <span className="os-label-l">{t('Execution times')}</span>
                               <div className="os-row" style={{ flexWrap: 'nowrap' }}>
                                 <input
                                   type="time"
                                   className="os-input"
-                                  aria-label="Execution time"
+                                  aria-label={t('Execution time')}
                                   value={newTime}
                                   onChange={(e) => setNewTime(e.target.value)}
                                   style={{ maxWidth: 160 }}
                                 />
-                                <OsButton kind="secondary" icon="add" onClick={addTime}>Add time</OsButton>
+                                <OsButton kind="secondary" icon="add" onClick={addTime}>{t('Add time')}</OsButton>
                               </div>
                               <div className="os-row">
                                 {manualTimes.length === 0 ? (
-                                  <span className="os-label-s t-secondary">No execution time added yet.</span>
+                                  <span className="os-label-s t-secondary">{t('No execution time added yet.')}</span>
                                 ) : (
-                                  manualTimes.map((t) => (
-                                    <OsTag key={t} color="grey" onClose={() => setManualTimes((prev) => prev.filter((x) => x !== t))}>
-                                      <span className="t-num">{t}</span>
+                                  manualTimes.map((time) => (
+                                    <OsTag key={time} color="grey" onClose={() => setManualTimes((prev) => prev.filter((x) => x !== time))}>
+                                      <span className="t-num">{time}</span>
                                     </OsTag>
                                   ))
                                 )}
@@ -225,18 +222,20 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
 
                           {selectedDays.length > 0 && manualTimes.length > 0 ? (
                             <OsAlert>
-                              Scheduled for <b>{manualTimes.length} execution(s)</b> per day on{' '}
-                              <b>{selectedDays.length === 7 ? 'every day' : selectedDays.map((dv) => DAYS.find((d) => d.value === dv)?.label).join(', ')}</b>{' '}
-                              at <b>{manualTimes.join(', ')}</b>.
+                              {t('Scheduled for {count} execution(s) per day on {days} at {times}.', {
+                                count: manualTimes.length,
+                                days: selectedDays.length === 7 ? t('every day') : selectedDays.map((dv) => DAYS.find((d) => d.value === dv)?.label).join(', '),
+                                times: manualTimes.join(', '),
+                              })}
                             </OsAlert>
                           ) : (
-                            <OsAlert color="orange">Select at least one execution day and one execution time.</OsAlert>
+                            <OsAlert color="orange">{t('Select at least one execution day and one execution time.')}</OsAlert>
                           )}
 
                           <div className="os-row" style={{ justifyContent: 'flex-end' }}>
-                            <OsButton kind="secondary" onClick={() => setShowScheduleId(null)}>Cancel</OsButton>
+                            <OsButton kind="secondary" onClick={() => setShowScheduleId(null)}>{t('Cancel')}</OsButton>
                             <OsButton icon="check" disabled={!selectedDays.length || !manualTimes.length} onClick={() => { onSaveSchedule(strategy.id, { days: selectedDays, times: manualTimes }); setShowScheduleId(null); }}>
-                              Save schedule
+                              {t('Save schedule')}
                             </OsButton>
                           </div>
                         </div>
@@ -247,7 +246,7 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
               );
             })}
             {scenarios.length === 0 && (
-              <tr><td colSpan={7} className="os-empty">{loading ? 'Loading strategies' : 'No strategy yet for this site. Create one with New strategy.'}</td></tr>
+              <tr><td colSpan={7} className="os-empty">{loading ? t('Loading strategies') : t('No strategy yet for this site. Create one with New strategy.')}</td></tr>
             )}
           </tbody>
         </table>

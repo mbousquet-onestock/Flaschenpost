@@ -6,6 +6,7 @@ import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SCENARIOS, MOCK_SUPPLIERS } from '../c
 import type { Dataset, ItemRef, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
 import { api } from './api';
 import type { HostContext } from './context';
+import { t } from './i18n';
 
 export type DataMode = 'static' | 'dynamic';
 export const DEFAULT_MODE: DataMode = import.meta.env.VITE_DATA_MODE === 'dynamic' ? 'dynamic' : 'static';
@@ -117,7 +118,7 @@ export const staticSource: DataSource = {
     if (u.lineStatuses) save({ ...store(), lineStatuses: u.lineStatuses });
   },
   async testConnection() {
-    throw new Error('The connection to OneStock is only available in the dynamic version.');
+    throw new Error(t('The connection to OneStock is only available in the dynamic version.'));
   },
   async listStrategies() {
     return store().strategies ?? MOCK_SCENARIOS;

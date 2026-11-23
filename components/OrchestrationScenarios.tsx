@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { OrchestrationConfig, OrderStatus, StockPointType, StockPointRank, ConsolidationMode, SupplierRef } from '../types';
 import { OsButton, OsCheckbox, OsFloating, OsIcon, OsSwitch, OsTag } from './os';
+import { t } from '../services/i18n';
 
 interface OrchestrationScenariosProps {
   config: OrchestrationConfig;
@@ -17,6 +18,7 @@ const TYPES: { value: StockPointType; label: string }[] = [
   { value: 'warehouse', label: 'Warehouse' },
   { value: 'supplier', label: 'Supplier' },
 ];
+// Texts below are English keys, translated where they are rendered.
 const RANKS: StockPointRank[] = ['P1', 'P2', 'P3'];
 const MODES: { value: ConsolidationMode; title: string; text: string }[] = [
   { value: 'cheapest_price', title: 'Cheapest purchase price', text: 'Groups quantities to reach the best unit price tier per SKU.' },
@@ -72,7 +74,7 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
   const tag = (c: Condition, category: string, value: string, editor: React.ReactNode, width?: number) => (
     <div style={{ position: 'relative' }} key={c}>
       <OsTag draggable onClick={() => toggle(c)} onClose={() => remove(c)}>
-        <span className="muted">{category} · {LABELS[c]} in </span>
+        <span className="muted">{t('{category} · {field} in', { category: t(category), field: t(LABELS[c]) })} </span>
         {value}
       </OsTag>
       {activeMenu === c && <OsFloating onClose={close} style={width ? { width } : undefined}>{editor}</OsFloating>}
@@ -83,11 +85,11 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
     const missing = options.filter((c) => !has[c]);
     return (
       <div style={{ position: 'relative' }}>
-        <OsButton kind="secondary" icon="add" disabled={!missing.length} onClick={() => toggle(menu)}>Add condition</OsButton>
+        <OsButton kind="secondary" icon="add" disabled={!missing.length} onClick={() => toggle(menu)}>{t('Add condition')}</OsButton>
         {activeMenu === menu && (
           <OsFloating onClose={close}>
             {missing.map((c) => (
-              <button key={c} type="button" className="os-opt" onClick={() => add(c)}>{LABELS[c]}</button>
+              <button key={c} type="button" className="os-opt" onClick={() => add(c)}>{t(LABELS[c])}</button>
             ))}
           </OsFloating>
         )}
@@ -104,13 +106,13 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
 
   return (
     <div className="os-col">
-      <Section title="Order information">
+      <Section title={t('Order information')}>
         <div className="os-row">
           {has.status &&
             tag('status', 'Order information', config.statuses.join(', '), (
               <>
-                <div className="os-float-head"><span className="os-body-l t-secondary">Order line status</span></div>
-                {statusOptions.length === 0 && <div className="os-opt t-secondary">No status configured</div>}
+                <div className="os-float-head"><span className="os-body-l t-secondary">{t('Order line status')}</span></div>
+                {statusOptions.length === 0 && <div className="os-opt t-secondary">{t('No status configured')}</div>}
                 {statusOptions.map((s) => (
                   <div key={s}><OsCheckbox checked={config.statuses.includes(s)} onChange={() => toggleStatus(s)} label={s} /></div>
                 ))}
@@ -118,14 +120,14 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
             ), 240)}
           {addButton('add-order', ['status'])}
         </div>
-        {!has.status && <p className="os-label-s t-secondary" style={{ margin: 0 }}>No condition: order lines of every configured status are taken.</p>}
+        {!has.status && <p className="os-label-s t-secondary" style={{ margin: 0 }}>{t('No condition: order lines of every configured status are taken.')}</p>}
       </Section>
 
-      <Section title="Stock point">
+      <Section title={t('Stock point')}>
         {has.type &&
           <div className="os-row">
-            {tag('type', 'Stock point', TYPES.find((t) => t.value === config.stockPointType)?.label ?? String(config.stockPointType), (
-              TYPES.map((t) => option(config.stockPointType === t.value, t.label, () => { onChange({ ...config, stockPointType: t.value }); close(); }))
+            {tag('type', 'Stock point', t(TYPES.find((x) => x.value === config.stockPointType)?.label ?? String(config.stockPointType)), (
+              TYPES.map((x) => option(config.stockPointType === x.value, t(x.label), () => { onChange({ ...config, stockPointType: x.value }); close(); }))
             ))}
           </div>}
         {has.rank &&
@@ -136,14 +138,14 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
           </div>}
         {has.suppliers &&
           <div className="os-row">
-            {tag('suppliers', 'Stock point', config.selectedSupplierIds?.length ? `${config.selectedSupplierIds.length} selected` : 'All', (
+            {tag('suppliers', 'Stock point', config.selectedSupplierIds?.length ? t('{count} selected', { count: config.selectedSupplierIds.length }) : t('All'), (
               <>
                 <div className="os-float-head">
-                  <span className="os-body-l t-secondary">Suppliers</span>
-                  <OsButton kind="tertiary" color="brand" onClick={() => onChange({ ...config, selectedSupplierIds: [] })}>All</OsButton>
+                  <span className="os-body-l t-secondary">{t('Suppliers')}</span>
+                  <OsButton kind="tertiary" color="brand" onClick={() => onChange({ ...config, selectedSupplierIds: [] })}>{t('All')}</OsButton>
                 </div>
                 <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-                  {suppliers.length === 0 && <div className="os-opt t-secondary">No supplier found</div>}
+                  {suppliers.length === 0 && <div className="os-opt t-secondary">{t('No supplier found')}</div>}
                   {suppliers.map((s) => (
                     <div key={s.id}>
                       <OsCheckbox
@@ -165,7 +167,7 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
         <div className="os-row">{addButton('add-stock', ['type', 'rank', 'suppliers'])}</div>
       </Section>
 
-      <Section title="Consolidation strategy">
+      <Section title={t('Consolidation strategy')}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 8 }} role="radiogroup">
           {MODES.map((m) => {
             const on = config.consolidationMode === m.value;
@@ -180,8 +182,8 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
               >
                 <span className="act"><OsIcon icon={on ? 'radio-button-checked' : 'radio-button-unchecked'} /></span>
                 <span>
-                  <span className={`os-label-l${on ? ' t-brand' : ''}`} style={{ display: 'block' }}>{m.title}</span>
-                  <span className="os-label-s t-secondary">{m.text}</span>
+                  <span className={`os-label-l${on ? ' t-brand' : ''}`} style={{ display: 'block' }}>{t(m.title)}</span>
+                  <span className="os-label-s t-secondary">{t(m.text)}</span>
                 </span>
               </button>
             );
@@ -192,10 +194,10 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
           <OsSwitch
             checked={config.blockIfFrancoNotMet}
             onChange={(v) => onChange({ ...config, blockIfFrancoNotMet: v })}
-            label="Block orders if Franco is not met"
+            label={t('Block orders if Franco is not met')}
           />
           <p className="os-label-s t-secondary" style={{ margin: '0 0 0 40px' }}>
-            When a supplier's free shipping threshold is not reached, the associated orders are not validated.
+            {t("When a supplier's free shipping threshold is not reached, the associated orders are not validated.")}
           </p>
         </div>
       </Section>

@@ -10,6 +10,7 @@ import { Step, Scenario, OrchestrationConfig, Dataset } from './types';
 import { HostContext, resolveHostContext, setManualContext } from './services/context';
 import { createDataSource, DataMode, DEFAULT_MODE, loadSavedMode } from './services/dataSource';
 import { simulate } from './services/simulation';
+import { date, t } from './services/i18n';
 
 const DEFAULT_CONFIG: OrchestrationConfig = {
   statuses: ['Placed', 'Out Of Stock'],
@@ -20,7 +21,7 @@ const DEFAULT_CONFIG: OrchestrationConfig = {
   selectedSupplierIds: [],
 };
 
-const STEPS = ['Execution scenario', 'Consolidated purchase orders'];
+const steps = () => [t('Execution scenario'), t('Consolidated purchase orders')];
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** "YYYY-MM-DD HH:MM", the format shown in the strategy list. */
@@ -121,7 +122,7 @@ const App: React.FC = () => {
       await source!.saveStrategy(s);
       setStrategyError(null);
     } catch (e) {
-      setStrategyError(`The strategy could not be saved: ${(e as Error).message}`);
+      setStrategyError(t('The strategy could not be saved: {error}', { error: (e as Error).message }));
     }
     await reloadStrategies();
   };
@@ -141,7 +142,7 @@ const App: React.FC = () => {
   const handleCreateNew = () => {
     setCurrent({
       id: `ST-${Date.now().toString(36)}`,
-      name: 'New strategy ' + new Date().toLocaleDateString('fr-FR'),
+      name: t('New strategy {date}', { date: date(new Date()) }),
       description: '',
       rules: [],
       metrics: { fulfillmentRate: 0, shippingCost: 0, deliveryTime: 0, carbonFootprint: 0, orderCount: 0, itemCount: 0 },
@@ -162,11 +163,11 @@ const App: React.FC = () => {
   };
 
   const handleDelete = async (s: Scenario) => {
-    if (!window.confirm(`Delete the strategy "${s.name}"?`)) return;
+    if (!window.confirm(t('Delete the strategy "{name}"?', { name: s.name }))) return;
     try {
       await source!.deleteStrategy(s.id);
     } catch (e) {
-      setStrategyError(`The strategy could not be deleted: ${(e as Error).message}`);
+      setStrategyError(t('The strategy could not be deleted: {error}', { error: (e as Error).message }));
     }
     await reloadStrategies();
   };
@@ -197,27 +198,27 @@ const App: React.FC = () => {
 
   // ---------- rendering ----------
   if (!source) {
-    return <ExtensionLayout><OsLoading text="Reading the OneStock context" /></ExtensionLayout>;
+    return <ExtensionLayout><OsLoading text={t('Reading the OneStock context')} /></ExtensionLayout>;
   }
 
   const dataState = dataError ? (
     <OsAlert color="red">
-      Data could not be loaded: {dataError}
-      {source.mode === 'dynamic' && ' Check the environment connection and the order line statuses in the settings.'}
+      {t('Data could not be loaded: {error}', { error: dataError })}
+      {source.mode === 'dynamic' && ' ' + t('Check the environment connection and the order line statuses in the settings.')}
     </OsAlert>
   ) : !data ? (
-    <OsLoading text="Loading orders, suppliers and prices" />
+    <OsLoading text={t('Loading orders, suppliers and prices')} />
   ) : null;
 
   const footer = inFlow && (
     <div className="os-actionbar">
       <OsButton kind="secondary" icon="arrow-left" onClick={currentStep === Step.OrchestrationScenarios ? backToDashboard : prevStep}>
-        {currentStep === Step.OrchestrationScenarios ? 'Back to strategies' : 'Previous step'}
+        {currentStep === Step.OrchestrationScenarios ? t('Back to strategies') : t('Previous step')}
       </OsButton>
       {currentStep < Step.ResultsVisualization ? (
-        <OsButton onClick={nextStep} iconEnd="arrow-right">Continue</OsButton>
+        <OsButton onClick={nextStep} iconEnd="arrow-right">{t('Continue')}</OsButton>
       ) : (
-        <OsButton icon="check" onClick={() => saveCurrent(false)}>Finish and save</OsButton>
+        <OsButton icon="check" onClick={() => saveCurrent(false)}>{t('Finish and save')}</OsButton>
       )}
     </div>
   );
@@ -226,9 +227,9 @@ const App: React.FC = () => {
     return (
       <ExtensionLayout footer={footer}>
         <div className="os-col">
-          <PageHeader title={strategyName} onBack={backToDashboard} badge={currentStep === Step.OrchestrationScenarios ? 'Draft' : undefined} />
+          <PageHeader title={strategyName} onBack={backToDashboard} badge={currentStep === Step.OrchestrationScenarios ? t('Draft') : undefined} />
           <div className="os-card" style={{ padding: '12px 16px' }}>
-            <OsStepper steps={STEPS} current={currentStep - 1} onStepClick={(i) => setCurrentStep((i + 1) as Step)} />
+            <OsStepper steps={steps()} current={currentStep - 1} onStepClick={(i) => setCurrentStep((i + 1) as Step)} />
           </div>
           {dataState ??
             (currentStep === Step.OrchestrationScenarios ? (
@@ -242,10 +243,10 @@ const App: React.FC = () => {
   }
 
   const tabs: { id: Tab; label: string; discreet?: boolean }[] = [
-    { id: 'strategies', label: 'Strategies' },
-    { id: 'prices', label: 'Supplier prices' },
+    { id: 'strategies', label: t('Strategies') },
+    { id: 'prices', label: t('Supplier prices') },
     // Invisible until hovered (or selected).
-    { id: 'settings', label: 'Settings', discreet: true },
+    { id: 'settings', label: t('Settings'), discreet: true },
   ];
 
   return (

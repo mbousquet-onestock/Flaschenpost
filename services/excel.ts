@@ -5,6 +5,7 @@
 // Names are informative only; supplier_id and item_id are the keys.
 import type * as XLSXNS from 'xlsx';
 import type { ItemRef, PriceTier, SupplierRef, SupplierTerm } from '../types';
+import { t } from './i18n';
 
 type XLSX = typeof XLSXNS;
 
@@ -109,7 +110,7 @@ export async function parseImport(file: File, suppliers: SupplierRef[], items: I
   const { rows, cols } = rowsOf(X, wb.Sheets[priceSheetName]);
   const missing = ['supplier_id', 'item_id', 'min_qty', 'unit_price'].filter((c) => !cols[c]);
   const prices: PriceTier[] = [];
-  if (missing.length) errors.push(`Sheet "${priceSheetName}": missing column(s) ${missing.join(', ')}`);
+  if (missing.length) errors.push(t('Sheet "{sheet}": missing column(s) {columns}', { sheet: priceSheetName, columns: missing.join(', ') }));
   else
     rows.forEach((r, i) => {
       const line = i + 2;
@@ -118,18 +119,18 @@ export async function parseImport(file: File, suppliers: SupplierRef[], items: I
       if (!supplierId && !itemId) return;
       const minQty = num(r[cols.min_qty]) ?? 1;
       const unitPrice = num(r[cols.unit_price]);
-      if (!supplierId || !itemId) return errors.push(`Prices row ${line}: supplier_id and item_id are required`);
-      if (!Number.isInteger(minQty) || minQty < 1) return errors.push(`Prices row ${line}: min_qty must be an integer ≥ 1`);
-      if (unitPrice === undefined || unitPrice < 0) return errors.push(`Prices row ${line}: invalid unit_price`);
-      if (!supplierIds.has(supplierId)) return errors.push(`Prices row ${line}: unknown supplier "${supplierId}"`);
-      if (itemIds.size && !itemIds.has(itemId)) warnings.push(`Prices row ${line}: item "${itemId}" not found in the loaded items`);
+      if (!supplierId || !itemId) return errors.push(t('Prices row {row}: supplier_id and item_id are required', { row: line }));
+      if (!Number.isInteger(minQty) || minQty < 1) return errors.push(t('Prices row {row}: min_qty must be an integer ≥ 1', { row: line }));
+      if (unitPrice === undefined || unitPrice < 0) return errors.push(t('Prices row {row}: invalid unit_price', { row: line }));
+      if (!supplierIds.has(supplierId)) return errors.push(t('Prices row {row}: unknown supplier "{supplier}"', { row: line, supplier: supplierId }));
+      if (itemIds.size && !itemIds.has(itemId)) warnings.push(t('Prices row {row}: item "{item}" not found in the loaded items', { row: line, item: itemId }));
       prices.push({ supplierId, itemId, minQty, unitPrice: Math.round(unitPrice * 10000) / 10000 });
     });
 
   const seen = new Set<string>();
   prices.forEach((p) => {
     const k = `${p.supplierId}|${p.itemId}|${p.minQty}`;
-    if (seen.has(k)) warnings.push(`Duplicate tier ${p.supplierId} / ${p.itemId} / ${p.minQty}: the last row wins`);
+    if (seen.has(k)) warnings.push(t('Duplicate tier {supplier} / {item} / {qty}: the last row wins', { supplier: p.supplierId, item: p.itemId, qty: p.minQty }));
     seen.add(k);
   });
 
@@ -137,18 +138,18 @@ export async function parseImport(file: File, suppliers: SupplierRef[], items: I
   const francoName = wb.SheetNames.find((n) => n.toLowerCase() === 'franco');
   if (francoName) {
     const f = rowsOf(X, wb.Sheets[francoName]);
-    if (!f.cols.supplier_id || !f.cols.franco) errors.push('Sheet "Franco": columns supplier_id and franco are required');
+    if (!f.cols.supplier_id || !f.cols.franco) errors.push(t('Sheet "Franco": columns supplier_id and franco are required'));
     else
       f.rows.forEach((r, i) => {
         const supplierId = String(r[f.cols.supplier_id] ?? '').trim();
         if (!supplierId) return;
         const raw = r[f.cols.franco];
         const franco = raw === '' || raw === null ? null : num(raw);
-        if (franco === undefined || (franco !== null && franco < 0)) return errors.push(`Franco row ${i + 2}: invalid franco`);
-        if (!supplierIds.has(supplierId)) return errors.push(`Franco row ${i + 2}: unknown supplier "${supplierId}"`);
+        if (franco === undefined || (franco !== null && franco < 0)) return errors.push(t('Franco row {row}: invalid franco', { row: i + 2 }));
+        if (!supplierIds.has(supplierId)) return errors.push(t('Franco row {row}: unknown supplier "{supplier}"', { row: i + 2, supplier: supplierId }));
         terms.push({ supplierId, franco });
       });
   }
-  if (!prices.length && !terms.length && !errors.length) errors.push('No price found in the file');
-  return { prices, terms, errors, warnings: warnings.length > 20 ? [...warnings.slice(0, 20), `… ${warnings.length - 20} more`] : warnings };
+  if (!prices.length && !terms.length && !errors.length) errors.push(t('No price found in the file'));
+  return { prices, terms, errors, warnings: warnings.length > 20 ? [...warnings.slice(0, 20), t('… {count} more', { count: warnings.length - 20 })] : warnings };
 }

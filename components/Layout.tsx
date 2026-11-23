@@ -2,6 +2,7 @@
 // the host already provides OsSideMenu and OsNavBar, so the extension renders only its content area.
 import React from 'react';
 import { OsBadge, OsButton } from './os';
+import { t } from '../services/i18n';
 
 /** Content area of the extension: OsCenteredLayout padding on surface-page-background, optional sticky action bar. */
 export const ExtensionLayout: React.FC<{ footer?: React.ReactNode; children: React.ReactNode }> = ({ footer, children }) => (
@@ -20,7 +21,7 @@ export const PageHeader: React.FC<{
 }> = ({ title, onBack, badge, end }) => (
   <div className="os-row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
     <div className="os-row" style={{ flexWrap: 'nowrap', minWidth: 0 }}>
-      {onBack && <OsButton kind="tertiary" round icon="arrow-left" aria-label="Back" title="Back" onClick={onBack} />}
+      {onBack && <OsButton kind="tertiary" round icon="arrow-left" aria-label={t('Back')} title={t('Back')} onClick={onBack} />}
       <h1 className="os-title-m" style={{ margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</h1>
       {badge && <OsBadge text={badge} color="orange" />}
     </div>
