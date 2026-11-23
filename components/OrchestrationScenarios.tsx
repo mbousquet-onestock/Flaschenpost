@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { InfoCondition, InfoSource, OrchestrationConfig, OrderConditions, pickOrderConditions, OrderDateFilter, OrderStatus, StockPointType, StockPointRank, ConsolidationMode, SupplierRef } from '../types';
+import { InfoCondition, InfoSource, OrchestrationConfig, OrderConditions, pickOrderConditions, pickStockConditions, StockConditions, OrderDateFilter, OrderStatus, StockPointType, StockPointRank, ConsolidationMode, SupplierRef } from '../types';
 import { OsBadge, OsButton, OsCheckbox, OsFloating, OsIcon, OsSwitch, OsTag } from './os';
 import { date as fmtDate, t } from '../services/i18n';
 import { InfoConditionEditor, infoConditionLabel, newInfoCondition } from './InfoConditionEditor';
@@ -15,8 +15,8 @@ interface OrchestrationScenariosProps {
   typeOptions: string[];
   /** Information keys and values found in the loaded orders, per source. */
   infoCatalog: Record<InfoSource, Map<string, Set<string>>>;
-  /** Renders only the order conditions of an OR group (config = that group's conditions over the main config). */
-  orGroup?: boolean;
+  /** Renders only the order or stock point conditions of an OR group (config = that group's conditions over the main config). */
+  orGroup?: 'order' | 'stock';
   /** Prefix of the element IDs, unique per group. */
   idPrefix?: string;
 }
@@ -115,8 +115,8 @@ const DateEditor: React.FC<{ prefix?: string; value: OrderDateFilter; onChange: 
 };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <section className="os-card os-col">
-    <h3 className="os-title-s" style={{ margin: 0 }}>{title}</h3>
+  <section className="os-card os-col" style={{ gap: 8, padding: '12px 16px' }}>
+    <h3 className="os-label-l" style={{ margin: 0 }}>{title}</h3>
     {children}
   </section>
 );
@@ -195,15 +195,15 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
     onChange({ ...config, selectedSupplierIds: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
   };
 
-  const tag = (c: Condition, category: string, value: string, editor: React.ReactNode, width?: number) => (
+  const tag = (c: Condition, value: string, editor: React.ReactNode, width?: number) => (
     <div style={{ position: 'relative' }} key={c}>
       <OsTag draggable onClick={() => toggle(c)} onClose={() => remove(c)}>
         <span className="muted">
           {c === 'date'
-            ? t('{category} · {field}:', { category: t(category), field: t(LABELS[c]) })
+            ? t('{field}:', { field: t(LABELS[c]) })
             : c === 'customer' || c === 'item'
-              ? t('{category} · {field} contains', { category: t(category), field: t(LABELS[c]) })
-              : t('{category} · {field} in', { category: t(category), field: t(LABELS[c]) })}{' '}
+              ? t('{field} contains', { field: t(LABELS[c]) })
+              : t('{field} in', { field: t(LABELS[c]) })}{' '}
         </span>
         {value}
       </OsTag>
@@ -250,7 +250,7 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
   // ---------- order conditions of this group (all to be met) ----------
   const rows: { key: string; node: React.ReactNode }[] = [];
   if (has.status)
-    rows.push({ key: 'status', node: tag('status', 'Order information', config.statuses.join(', '), (
+    rows.push({ key: 'status', node: tag('status', config.statuses.join(', '), (
       <>
         <div className="os-float-head"><span className="os-body-l t-secondary">{t('Order line status')}</span></div>
         {statusOptions.length === 0 && <div className="os-opt t-secondary">{t('No status configured')}</div>}
@@ -260,23 +260,22 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
       </>
     ), 240) });
   if (config.orderDate)
-    rows.push({ key: 'date', node: tag('date', 'Order information', orderDateLabel(config.orderDate), (
+    rows.push({ key: 'date', node: tag('date', orderDateLabel(config.orderDate), (
       <DateEditor prefix={idPrefix} value={config.orderDate} onChange={(orderDate) => onChange({ ...config, orderDate })} />
     ), 440) });
   if (config.salesChannels)
-    rows.push({ key: 'channel', node: tag('channel', 'Order information',
-      config.salesChannels.map((id) => channelOptions.find((o) => o.id === id)?.name ?? id).join(', ') || t('None'),
+    rows.push({ key: 'channel', node: tag('channel', config.salesChannels.map((id) => channelOptions.find((o) => o.id === id)?.name ?? id).join(', ') || t('None'),
       checkList(t('Sales channel'), channelOptions, config.salesChannels, (salesChannels) => onChange({ ...config, salesChannels }), t('No sales channel found')), 260) });
   if (config.orderTypes)
-    rows.push({ key: 'otype', node: tag('otype', 'Order information', config.orderTypes.join(', ') || t('None'),
+    rows.push({ key: 'otype', node: tag('otype', config.orderTypes.join(', ') || t('None'),
       checkList(t('Order type'), typeOptions.map((v) => ({ id: v, name: v })), config.orderTypes, (orderTypes) => onChange({ ...config, orderTypes }), t('No order type in the loaded orders')), 260) });
   if (config.customerQuery !== undefined)
-    rows.push({ key: 'customer', node: tag('customer', 'Order information', config.customerQuery.trim() || t('(to fill in)'), (
+    rows.push({ key: 'customer', node: tag('customer', config.customerQuery.trim() || t('(to fill in)'), (
       <TextEditor id={`${idPrefix}cond-customer`} value={config.customerQuery} placeholder={t('Name or email')}
         onChange={(customerQuery) => onChange({ ...config, customerQuery })} onDone={close} />
     ), 360) });
   if (config.itemQuery !== undefined)
-    rows.push({ key: 'item', node: tag('item', 'Order information', config.itemQuery.trim() || t('(to fill in)'), (
+    rows.push({ key: 'item', node: tag('item', config.itemQuery.trim() || t('(to fill in)'), (
       <TextEditor id={`${idPrefix}cond-item`} value={config.itemQuery} placeholder={t('SKU or name')}
         onChange={(itemQuery) => onChange({ ...config, itemQuery })} onDone={close} />
     ), 360) });
@@ -298,109 +297,119 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
     ) });
   });
 
-  const orderBlock = (
-    <>
-      {rows.map((r, i) => (
-        <div className="os-row" key={r.key}>
-          {i > 0 && <OsBadge text={t('AND')} color="grey" secondary />}
+  /** Conditions of a group on one wrapping line: condition AND condition … [Add condition]. */
+  const inline = (items: { key: string; node: React.ReactNode }[], add: React.ReactNode, empty: string) => (
+    <div className="os-row" style={{ gap: 6 }}>
+      {items.map((r, i) => (
+        <React.Fragment key={r.key}>
+          {i > 0 && <span className="os-body-m t-secondary">{t('AND')}</span>}
           {r.node}
-        </div>
+        </React.Fragment>
       ))}
-      <div className="os-row">{addButton('add-order', ORDER_CONDITIONS, true)}</div>
-      {!rows.length && (
-        <p className="os-label-s t-secondary" style={{ margin: 0 }}>
-          {orGroup ? t('Empty group: it takes every order line.') : t('No condition: order lines of every configured status are taken.')}
-        </p>
-      )}
-    </>
+      {add}
+      {!items.length && <span className="os-label-s t-secondary">{empty}</span>}
+    </div>
   );
 
-  if (orGroup) return orderBlock;
+  const orderBlock = inline(
+    rows,
+    addButton('add-order', ORDER_CONDITIONS, true),
+    orGroup ? t('Empty group: it takes every order line.') : t('No condition: order lines of every configured status are taken.'),
+  );
 
-  const groups = config.orGroups ?? [];
-  const setGroup = (i: number, g: OrderConditions) => onChange({ ...config, orGroups: groups.map((x, j) => (j === i ? g : x)) });
-  const removeGroup = (i: number) => {
-    const rest = groups.filter((_, j) => j !== i);
-    onChange({ ...config, orGroups: rest.length ? rest : undefined });
-  };
+  // ---------- stock point conditions of this group (all to be met by a supplier) ----------
+  const stockRows: { key: string; node: React.ReactNode }[] = [];
+  if (has.type)
+    stockRows.push({ key: 'type', node: tag('type', t(TYPES.find((x) => x.value === config.stockPointType)?.label ?? String(config.stockPointType)), (
+      TYPES.map((x) => option(config.stockPointType === x.value, t(x.label), () => { onChange({ ...config, stockPointType: x.value }); close(); }))
+    )) });
+  if (has.rank)
+    stockRows.push({ key: 'rank', node: tag('rank', String(config.stockPointRank), (
+      RANKS.map((r) => option(config.stockPointRank === r, r, () => { onChange({ ...config, stockPointRank: r }); close(); }))
+    )) });
+  if (has.suppliers)
+    stockRows.push({ key: 'suppliers', node: tag('suppliers', config.selectedSupplierIds?.length ? t('{count} selected', { count: config.selectedSupplierIds.length }) : t('All'), (
+      <>
+        <div className="os-float-head">
+          <span className="os-body-l t-secondary">{t('Suppliers')}</span>
+          <OsButton kind="tertiary" color="brand" onClick={() => onChange({ ...config, selectedSupplierIds: [] })}>{t('All')}</OsButton>
+        </div>
+        <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+          {suppliers.length === 0 && <div className="os-opt t-secondary">{t('No supplier found')}</div>}
+          {suppliers.map((s) => (
+            <div key={s.id}>
+              <OsCheckbox
+                checked={(config.selectedSupplierIds || []).includes(s.id)}
+                onChange={() => toggleSupplier(s.id)}
+                label={
+                  <span style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span className="os-label-s">{s.name}</span>
+                    <span className="os-body-s t-secondary">{s.id}</span>
+                  </span>
+                }
+              />
+            </div>
+          ))}
+        </div>
+      </>
+    ), 280) });
+  const stockBlock = inline(
+    stockRows,
+    addButton('add-stock', ['type', 'rank', 'suppliers']),
+    orGroup ? t('Empty group: every supplier can be used.') : t('No condition: every supplier can be used.'),
+  );
+
+  if (orGroup === 'order') return orderBlock;
+  if (orGroup === 'stock') return stockBlock;
+
+  /** OR groups of a section: each on one line, "OR" badge, conditions, delete button. */
+  const orGroupsOf = <G,>(
+    kind: 'order' | 'stock',
+    groups: G[],
+    set: (next: G[] | undefined) => void,
+    pick: (c: OrchestrationConfig) => G,
+    empty: G,
+  ) => (
+    <>
+      {groups.map((g, i) => (
+        <div className="os-row" key={i} style={{ flexWrap: 'nowrap', alignItems: 'flex-start', gap: 8 }}>
+          <span style={{ paddingTop: 7, flex: 'none' }}><OsBadge text={t('OR')} color="primary" /></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <OrchestrationScenarios
+              orGroup={kind}
+              idPrefix={`${kind}${i + 2}-`}
+              config={{ ...config, ...(kind === 'order' ? pickOrderConditions({ ...(g as OrderConditions), statuses: (g as OrderConditions).statuses ?? [] }) : pickStockConditions(g as StockConditions)) }}
+              onChange={(c) => set(groups.map((x, j) => (j === i ? pick(c) : x)))}
+              statusOptions={statusOptions}
+              suppliers={suppliers}
+              channelOptions={channelOptions}
+              typeOptions={typeOptions}
+              infoCatalog={infoCatalog}
+            />
+          </div>
+          <OsButton kind="tertiary" color="red" round icon="trash" title={t('Delete group')} aria-label={t('Delete group')}
+            onClick={() => { const rest = groups.filter((_, j) => j !== i); set(rest.length ? rest : undefined); }} />
+        </div>
+      ))}
+      <div>
+        <OsButton kind="tertiary" color="brand" icon="add" onClick={() => set([...groups, empty])}
+          title={kind === 'order' ? t('An order line is taken when it meets all the conditions of at least one group.') : t('A supplier can be used when it meets all the conditions of at least one group.')}>
+          {t('Add an OR group')}
+        </OsButton>
+      </div>
+    </>
+  );
 
   return (
     <div className="os-col">
       <Section title={t('Order information')}>
-        {groups.length > 0 && <span className="os-body-l t-secondary">{t('Group {n}', { n: 1 })}</span>}
         {orderBlock}
-        {groups.map((g, i) => (
-          <React.Fragment key={i}>
-            <div className="os-row" style={{ gap: 12 }}>
-              <OsBadge text={t('OR')} color="primary" />
-              <span className="os-body-l t-secondary">{t('Group {n}', { n: i + 2 })}</span>
-              <OsButton kind="tertiary" color="red" icon="trash" onClick={() => removeGroup(i)}>{t('Delete group')}</OsButton>
-            </div>
-            <div className="os-col" style={{ paddingLeft: 16, borderLeft: '2px solid var(--border-brand)', gap: 12 }}>
-              <OrchestrationScenarios
-                orGroup
-                idPrefix={`g${i + 2}-`}
-                config={{ ...config, ...pickOrderConditions({ ...g, statuses: g.statuses ?? [] }) }}
-                onChange={(c) => setGroup(i, pickOrderConditions(c))}
-                statusOptions={statusOptions}
-                suppliers={suppliers}
-                channelOptions={channelOptions}
-                typeOptions={typeOptions}
-                infoCatalog={infoCatalog}
-              />
-            </div>
-          </React.Fragment>
-        ))}
-        <div className="os-row" style={{ borderTop: '1px solid var(--border-primary)', paddingTop: 12 }}>
-          <OsButton kind="tertiary" color="brand" icon="add" onClick={() => onChange({ ...config, orGroups: [...groups, { statuses: [] }] })}>
-            {t('Add an OR group')}
-          </OsButton>
-          <span className="os-hint">{t('An order line is taken when it meets all the conditions of at least one group.')}</span>
-        </div>
+        {orGroupsOf('order', config.orGroups ?? [], (orGroups) => onChange({ ...config, orGroups }), (c) => pickOrderConditions(c), { statuses: [] } as OrderConditions)}
       </Section>
 
       <Section title={t('Stock point')}>
-        {has.type &&
-          <div className="os-row">
-            {tag('type', 'Stock point', t(TYPES.find((x) => x.value === config.stockPointType)?.label ?? String(config.stockPointType)), (
-              TYPES.map((x) => option(config.stockPointType === x.value, t(x.label), () => { onChange({ ...config, stockPointType: x.value }); close(); }))
-            ))}
-          </div>}
-        {has.rank &&
-          <div className="os-row">
-            {tag('rank', 'Stock point', String(config.stockPointRank), (
-              RANKS.map((r) => option(config.stockPointRank === r, r, () => { onChange({ ...config, stockPointRank: r }); close(); }))
-            ))}
-          </div>}
-        {has.suppliers &&
-          <div className="os-row">
-            {tag('suppliers', 'Stock point', config.selectedSupplierIds?.length ? t('{count} selected', { count: config.selectedSupplierIds.length }) : t('All'), (
-              <>
-                <div className="os-float-head">
-                  <span className="os-body-l t-secondary">{t('Suppliers')}</span>
-                  <OsButton kind="tertiary" color="brand" onClick={() => onChange({ ...config, selectedSupplierIds: [] })}>{t('All')}</OsButton>
-                </div>
-                <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-                  {suppliers.length === 0 && <div className="os-opt t-secondary">{t('No supplier found')}</div>}
-                  {suppliers.map((s) => (
-                    <div key={s.id}>
-                      <OsCheckbox
-                        checked={(config.selectedSupplierIds || []).includes(s.id)}
-                        onChange={() => toggleSupplier(s.id)}
-                        label={
-                          <span style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span className="os-label-s">{s.name}</span>
-                            <span className="os-body-s t-secondary">{s.id}</span>
-                          </span>
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              </>
-            ), 280)}
-          </div>}
-        <div className="os-row">{addButton('add-stock', ['type', 'rank', 'suppliers'])}</div>
+        {stockBlock}
+        {orGroupsOf('stock', config.stockOrGroups ?? [], (stockOrGroups) => onChange({ ...config, stockOrGroups }), (c) => pickStockConditions(c), {} as StockConditions)}
       </Section>
 
       <Section title={t('Consolidation strategy')}>

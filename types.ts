@@ -51,6 +51,18 @@ export interface OrchestrationConfig {
    * above (group 1) or all the conditions of one of these groups. Stock point conditions apply to every group.
    */
   orGroups?: OrderConditions[];
+  /**
+   * Other groups of stock point conditions, combined with OR: a supplier can be used when it meets the stock point
+   * conditions above (group 1) or all the conditions of one of these groups.
+   */
+  stockOrGroups?: StockConditions[];
+}
+
+/** Stock point conditions of one group (all to be met by a supplier). */
+export type StockConditions = Pick<OrchestrationConfig, 'stockPointType' | 'stockPointRank' | 'selectedSupplierIds'>;
+
+export function pickStockConditions(c: StockConditions): StockConditions {
+  return { stockPointType: c.stockPointType, stockPointRank: c.stockPointRank, selectedSupplierIds: c.selectedSupplierIds };
 }
 
 /** Order conditions of one group (all to be met). */

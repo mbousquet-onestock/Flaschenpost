@@ -4,7 +4,7 @@
 //    (dearer unit price, but franco reached or lower shipping fees) while the total purchase cost
 //    (goods + shipping fees) decreases. When a supplier's franco is not reached,
 // its shipping fee is added: a fixed amount, an amount per kg (item weights) or an amount per unit.
-import type { Dataset, InfoCondition, InfoSource, InfoValue, NewPurchaseOrder, OrchestrationConfig, OrderConditions, OrderDateFilter, OrderLine, PriceTier, PurchaseOrderSource, ShippingMode } from '../types';
+import type { Dataset, InfoCondition, InfoSource, InfoValue, NewPurchaseOrder, OrchestrationConfig, OrderConditions, StockConditions, SupplierRef, OrderDateFilter, OrderLine, PriceTier, PurchaseOrderSource, ShippingMode } from '../types';
 
 /** Shipping fee of a supplier whose franco is not reached. */
 export interface SupplierShipping {
@@ -104,17 +104,25 @@ function groupMatcher(g: OrderConditions, itemNames: Map<string, string>): (l: O
   };
 }
 
+/**
+ * Whether a supplier meets the stock point conditions of a group.
+ * Rank: P1 takes the P1 suppliers, P2 the P1 and P2 suppliers, P3 all of them; a supplier without a rank meets it.
+ * Type: suppliers are supplier stock points; the type condition does not filter them.
+ */
+function supplierMatches(g: StockConditions, s: SupplierRef): boolean {
+  if (g.selectedSupplierIds?.length && !g.selectedSupplierIds.includes(s.id)) return false;
+  if (g.stockPointRank && s.rank) {
+    const order = ['P1', 'P2', 'P3'];
+    if (order.indexOf(s.rank) > order.indexOf(g.stockPointRank)) return false;
+  }
+  return true;
+}
+
 export function simulate(data: Dataset, config: OrchestrationConfig): SimulationResult {
   const itemNames = new Map(data.items.map((i) => [i.id, i.name.toLowerCase()]));
   // Group 1 (the order conditions of the configuration) OR each additional group.
   const groups = [config, ...(config.orGroups ?? [])].map((g) => groupMatcher(g, itemNames));
-  const lines = data.lines.filter((l) => {
-    if (!groups.some((matches) => matches(l))) return false;
-    if (!l.priority || !config.stockPointRank) return true;
-    if (config.stockPointRank === 'P1') return l.priority === 'P1';
-    if (config.stockPointRank === 'P2') return l.priority !== 'P3';
-    return true;
-  });
+  const lines = data.lines.filter((l) => groups.some((matches) => matches(l)));
 
   const skuTotals = new Map<string, number>();
   const linesBySku = new Map<string, PurchaseOrderSource[]>();
@@ -123,13 +131,15 @@ export function simulate(data: Dataset, config: OrchestrationConfig): Simulation
     linesBySku.set(l.sku, [...(linesBySku.get(l.sku) ?? []), { id: l.id, orderId: l.orderId, status: l.status, quantity: l.quantity }]);
   });
 
-  const selected = config.selectedSupplierIds || [];
   const suppliers = new Map(data.suppliers.map((s) => [s.id, s]));
+  // Suppliers that can be used: stock point group 1 OR each additional stock point group.
+  const stockGroups = [config, ...(config.stockOrGroups ?? [])];
+  const eligible = new Set(data.suppliers.filter((s) => stockGroups.some((g) => supplierMatches(g, s))).map((s) => s.id));
   const names = new Map(data.items.map((i) => [i.id, i.name]));
   const tiersBySku = new Map<string, Map<string, PriceTier[]>>();
   data.prices.forEach((p) => {
     if (!suppliers.has(p.supplierId)) return;
-    if (selected.length && !selected.includes(p.supplierId)) return;
+    if (!eligible.has(p.supplierId)) return;
     const bySupplier = tiersBySku.get(p.itemId) ?? new Map<string, PriceTier[]>();
     bySupplier.set(p.supplierId, [...(bySupplier.get(p.supplierId) ?? []), p]);
     tiersBySku.set(p.itemId, bySupplier);
