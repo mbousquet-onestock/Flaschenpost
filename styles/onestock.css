@@ -341,7 +341,8 @@ select.os-input { appearance: none; -webkit-appearance: none; padding-right: 36p
   background: var(--surface-primary) url(/icons/chevron-down.svg) no-repeat right 8px center / 18px; }
 
 /* ---------- Forms ---------- */
-.os-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; align-items: end; }
+.os-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; align-items: start; }
+.os-form > div:not(.os-field) { padding-top: 21px; }
 .os-hint { font: 400 12px/1.4 var(--font-family); color: var(--text-secondary); }
 .os-hint.error { color: var(--text-red); }
 .os-input.num { text-align: right; font-variant-numeric: tabular-nums; }

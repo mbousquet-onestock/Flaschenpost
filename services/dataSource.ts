@@ -1,13 +1,14 @@
-// Data source of the app. Two versions share the same UI:
-//  - static  (VITE_DATA_MODE unset or "static"): mock data from constants.tsx, edits kept in the browser;
-//  - dynamic (VITE_DATA_MODE=dynamic): OneStock API through the Vercel functions, settings and prices in the database.
+// Data source of the app, chosen in the settings tab (saved per environment + site ID):
+//  - static: mock data from constants.tsx, edits kept in the browser;
+//  - dynamic: OneStock API through the Vercel functions, settings and prices in the database.
+// VITE_DATA_MODE only sets the default mode of a site that has none saved.
 import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SUPPLIERS } from '../constants';
 import type { Dataset, ItemRef, PriceTier, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
 import { api } from './api';
 import type { HostContext } from './context';
 
 export type DataMode = 'static' | 'dynamic';
-export const DATA_MODE: DataMode = import.meta.env.VITE_DATA_MODE === 'dynamic' ? 'dynamic' : 'static';
+export const DEFAULT_MODE: DataMode = import.meta.env.VITE_DATA_MODE === 'dynamic' ? 'dynamic' : 'static';
 
 export type PricesPayload = { prices?: PriceTier[]; terms?: SupplierTerm[]; replaceSuppliers?: string[] };
 
@@ -60,7 +61,7 @@ const defaultPrices = (): PriceTier[] =>
   MOCK_PRODUCTS.flatMap((p) => p.prices.map((t) => ({ supplierId: p.supplierId, itemId: p.sku, minQty: t.quantity, unitPrice: round(t.price) })));
 const defaultTerms = (): SupplierTerm[] => MOCK_SUPPLIERS.map((s) => ({ supplierId: s.id, franco: round(s.franco) }));
 
-const staticSource: DataSource = {
+export const staticSource: DataSource = {
   mode: 'static',
   context: null,
   async loadDataset() {
@@ -177,7 +178,23 @@ function dynamicSource(ctx: HostContext): DataSource {
   return source;
 }
 
-export function createDataSource(ctx: HostContext | null): DataSource | null {
-  if (DATA_MODE === 'static') return staticSource;
-  return ctx ? dynamicSource(ctx) : null;
+export function createDataSource(mode: DataMode, ctx: HostContext | null): DataSource {
+  return mode === 'dynamic' && ctx ? dynamicSource(ctx) : staticSource;
 }
+
+/** Saved mode of the site; null when none is saved or the API is unavailable (static deployment). */
+export async function loadSavedMode(ctx: HostContext): Promise<DataMode | null> {
+  try {
+    const c = await api<Settings>(ctx, 'config');
+    return c.dataMode ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Settings stored in the database for a site (connection, mode), independent of the active mode. */
+export const siteSettings = (ctx: HostContext) => ({
+  get: () => api<Settings>(ctx, 'config'),
+  save: (u: SettingsUpdate) => api(ctx, 'config', { method: 'PUT', body: u }),
+  testConnection: (apiUser?: string, password?: string) => api(ctx, 'login', { method: 'POST', body: { apiUser, password } }),
+});

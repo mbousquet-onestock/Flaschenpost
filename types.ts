@@ -135,9 +135,12 @@ export interface Settings {
   tokenAt: string | null;
   lineStatuses: string[];
   supplierType: string;
+  /** Data source saved for the site (dynamic version only); null when not set. */
+  dataMode?: 'static' | 'dynamic' | null;
 }
 
 export interface SettingsUpdate {
+  dataMode?: 'static' | 'dynamic';
   apiUser?: string;
   password?: string;
   lineStatuses?: string[];

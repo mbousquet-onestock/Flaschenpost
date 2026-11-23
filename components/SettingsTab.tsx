@@ -1,20 +1,40 @@
-// Hidden settings tab: OneStock connection (user / password → POST /login token) and the order line
-// statuses to retrieve, saved per environment + site_id. Shown with ?settings in the URL or Ctrl+Shift+S.
+// Hidden settings tab (?settings in the URL or Ctrl+Shift+S):
+//  - data source: static (sample data) or dynamic (OneStock API), saved per environment + site ID;
+//  - environment connection: environment, site ID, API user and password (token requested with POST /login);
+//  - data retrieved: order line statuses, supplier stock point type.
 import React, { useEffect, useState } from 'react';
 import type { Settings } from '../types';
-import type { DataSource } from '../services/dataSource';
+import type { HostContext } from '../services/context';
+import { DataMode, siteSettings, staticSource } from '../services/dataSource';
 import { ApiError, getAdminKey, setAdminKey } from '../services/api';
-import { OsAlert, OsBadge, OsButton, OsField, OsLoading, OsTag } from './os';
+import { OsAlert, OsBadge, OsButton, OsField, OsIcon, OsTag } from './os';
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 
-export const SettingsTab: React.FC<{ source: DataSource; onSaved: () => void }> = ({ source, onSaved }) => {
-  const dynamic = source.mode === 'dynamic';
+const MODES: { value: DataMode; title: string; text: string }[] = [
+  { value: 'static', title: 'Static', text: 'Sample orders, items and suppliers. Prices and statuses are kept in this browser.' },
+  { value: 'dynamic', title: 'Dynamic', text: 'Orders, items and suppliers from the OneStock API of the environment below. Settings and prices saved in the database.' },
+];
+
+export const SettingsTab: React.FC<{
+  context: HostContext | null;
+  mode: DataMode;
+  onModeChange: (mode: DataMode) => void;
+  onContextChange: (ctx: { env: string; siteId: string }) => void;
+  onSaved: () => void;
+}> = ({ context, mode, onModeChange, onContextChange, onSaved }) => {
+  const fromHost = context?.source === 'url' || context?.source === 'host';
+  const site = context ? siteSettings(context) : null;
+
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [apiAvailable, setApiAvailable] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [needsKey, setNeedsKey] = useState(false);
   const [adminKey, setKey] = useState(getAdminKey());
+  const [selectedMode, setSelectedMode] = useState<DataMode>(mode);
+  const [env, setEnv] = useState(context?.env ?? 'qualif');
+  const [siteId, setSiteId] = useState(context?.siteId ?? '');
   const [apiUser, setApiUser] = useState('');
   const [password, setPassword] = useState('');
   const [statuses, setStatuses] = useState<string[]>([]);
@@ -23,23 +43,34 @@ export const SettingsTab: React.FC<{ source: DataSource; onSaved: () => void }> 
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    try {
-      const s = await source.getSettings();
-      setSettings(s);
-      setApiUser(s.apiUser);
-      setStatuses(s.lineStatuses);
-      setSupplierType(s.supplierType);
-    } catch (e) {
-      setError((e as Error).message);
+    if (site) {
+      try {
+        const s = await site.get();
+        setSettings(s);
+        setApiAvailable(true);
+        setApiUser(s.apiUser);
+        setSupplierType(s.supplierType);
+        if (selectedMode === 'dynamic') setStatuses(s.lineStatuses);
+      } catch (e) {
+        setApiAvailable(false);
+        setSettings(null);
+        if (selectedMode === 'dynamic') setError(`Database unavailable: ${(e as Error).message}`);
+      }
     }
+    if (selectedMode === 'static') setStatuses((await staticSource.getSettings()).lineStatuses);
   };
+
+  useEffect(() => {
+    setEnv(context?.env ?? 'qualif');
+    setSiteId(context?.siteId ?? '');
+  }, [context]);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]);
+  }, [context, selectedMode]);
 
-  const run = async (fn: () => Promise<void>, done: string) => {
+  const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -57,20 +88,51 @@ export const SettingsTab: React.FC<{ source: DataSource; onSaved: () => void }> 
     }
   };
 
+  const saveMode = () =>
+    run(async () => {
+      if (selectedMode === 'dynamic' && !context) throw new Error('Enter the environment and the site ID first.');
+      if (site) {
+        try {
+          await site.save({ dataMode: selectedMode });
+        } catch (e) {
+          // Static mode still works without the database (static deployment).
+          if (selectedMode === 'dynamic' || (e instanceof ApiError && e.status === 403)) throw e;
+        }
+      }
+      onModeChange(selectedMode);
+    }, selectedMode === 'dynamic' ? 'Dynamic data source saved for this site.' : 'Static data source saved.');
+
+  const saveContext = () => {
+    const e = env.trim().toLowerCase();
+    const s = siteId.trim().toLowerCase();
+    if (!/^[a-z0-9-]{1,20}$/.test(e)) return setError('Invalid environment.');
+    if (!/^[a-z0-9_-]{1,32}$/.test(s)) return setError('Invalid site ID, e.g. c00.');
+    setError(null);
+    setNotice('Environment saved in this browser.');
+    onContextChange({ env: e, siteId: s });
+  };
+
   const addStatus = () => {
     const s = newStatus.trim();
     if (s && !statuses.includes(s)) setStatuses([...statuses, s]);
     setNewStatus('');
   };
 
-  if (!settings && !error) return <OsLoading text="Loading settings" />;
+  const saveData = () =>
+    run(
+      () =>
+        selectedMode === 'dynamic' && site
+          ? site.save({ lineStatuses: statuses, supplierType: supplierType.trim() || 'supplier' })
+          : staticSource.saveSettings({ lineStatuses: statuses }),
+      'Settings saved.',
+    );
 
   return (
     <div className="os-col">
       {error && <OsAlert color="red">{error}</OsAlert>}
       {notice && <OsAlert color="green">{notice}</OsAlert>}
 
-      {dynamic && needsKey && (
+      {needsKey && (
         <section className="os-card os-col">
           <h3 className="os-title-s" style={{ margin: 0 }}>Settings key</h3>
           <p className="os-label-s t-secondary" style={{ margin: 0 }}>This deployment protects the settings with a key (SETTINGS_ADMIN_KEY).</p>
@@ -83,45 +145,83 @@ export const SettingsTab: React.FC<{ source: DataSource; onSaved: () => void }> 
         </section>
       )}
 
-      {dynamic ? (
-        <section className="os-card os-col" style={{ gap: 16 }}>
-          <div className="os-row" style={{ justifyContent: 'space-between' }}>
-            <h3 className="os-title-s" style={{ margin: 0 }}>OneStock connection</h3>
-            {settings?.connected ? <OsBadge text="Connected" color="green" icon="check" /> : <OsBadge text="Not connected" color="grey" />}
-          </div>
-          <dl className="os-kv" style={{ margin: 0 }}>
-            <dt>Environment</dt><dd>{source.context?.env}</dd>
-            <dt>Site ID</dt><dd>{source.context?.siteId}</dd>
-            <dt>Last token</dt><dd>{fmt(settings?.tokenAt ?? null)}</dd>
-          </dl>
-          <form
-            className="os-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              run(() => source.testConnection(apiUser.trim(), password || undefined), 'Connection succeeded. Credentials saved for this site.');
-            }}
-          >
-            <OsField label="API user" htmlFor="st-user">
-              <input id="st-user" className="os-input" autoComplete="username" value={apiUser} onChange={(e) => setApiUser(e.target.value)} required />
-            </OsField>
-            <OsField label="Password" htmlFor="st-pwd" hint={settings?.hasPassword ? 'A password is saved. Leave empty to keep it.' : undefined}>
-              <input id="st-pwd" type="password" className="os-input" autoComplete="current-password" value={password} placeholder={settings?.hasPassword ? '••••••••' : ''}
-                onChange={(e) => setPassword(e.target.value)} required={!settings?.hasPassword} />
-            </OsField>
-            <div><OsButton type="submit" icon="check" disabled={busy}>Test and save connection</OsButton></div>
-          </form>
-          <p className="os-hint" style={{ margin: 0 }}>
-            The token is requested with POST /login and stored server side; the password is stored encrypted and never sent back to the browser.
-          </p>
-        </section>
-      ) : (
-        <OsAlert>Static data version: orders, items and suppliers are sample data. The OneStock connection is only available in the dynamic version.</OsAlert>
-      )}
+      <section className="os-card os-col" style={{ gap: 16 }}>
+        <div className="os-row" style={{ justifyContent: 'space-between' }}>
+          <h3 className="os-title-s" style={{ margin: 0 }}>Data source</h3>
+          <OsBadge text={mode === 'dynamic' ? 'Dynamic in use' : 'Static in use'} color={mode === 'dynamic' ? 'primary' : 'grey'} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 8 }} role="radiogroup" aria-label="Data source">
+          {MODES.map((m) => {
+            const on = selectedMode === m.value;
+            return (
+              <button key={m.value} type="button" role="radio" aria-checked={on} className={`os-choice${on ? ' on' : ''}`} onClick={() => setSelectedMode(m.value)}>
+                <span className="act"><OsIcon icon={on ? 'radio-button-checked' : 'radio-button-unchecked'} /></span>
+                <span>
+                  <span className={`os-label-l${on ? ' t-brand' : ''}`} style={{ display: 'block' }}>{m.title}</span>
+                  <span className="os-label-s t-secondary">{m.text}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {selectedMode === 'dynamic' && !apiAvailable && context && (
+          <OsAlert color="orange">The database of this deployment is not reachable: the dynamic source needs DATABASE_URL and CREDENTIALS_KEY on Vercel.</OsAlert>
+        )}
+        <div className="os-row" style={{ justifyContent: 'flex-end' }}>
+          <OsButton icon="save" disabled={busy || selectedMode === mode} onClick={saveMode}>Apply data source</OsButton>
+        </div>
+      </section>
 
       <section className="os-card os-col" style={{ gap: 16 }}>
-        <h3 className="os-title-s" style={{ margin: 0 }}>Data retrieved</h3>
+        <div className="os-row" style={{ justifyContent: 'space-between' }}>
+          <h3 className="os-title-s" style={{ margin: 0 }}>Environment connection</h3>
+          {settings?.connected ? <OsBadge text="Connected" color="green" icon="check" /> : <OsBadge text="Not connected" color="grey" />}
+        </div>
+
+        <div className="os-form">
+          <OsField label="Environment" htmlFor="st-env" hint={fromHost ? 'Provided by OneStock' : 'qualif, prod…'}>
+            <input id="st-env" className="os-input" list="st-envs" value={env} disabled={fromHost} onChange={(e) => setEnv(e.target.value)} />
+            <datalist id="st-envs"><option value="qualif" /><option value="prod" /></datalist>
+          </OsField>
+          <OsField label="Site ID" htmlFor="st-site" hint={fromHost ? 'Provided by OneStock' : 'e.g. c00'}>
+            <input id="st-site" className="os-input" value={siteId} disabled={fromHost} placeholder="c00" onChange={(e) => setSiteId(e.target.value)} />
+          </OsField>
+          {!fromHost && (
+            <div><OsButton kind="secondary" icon="save" onClick={saveContext}>Save environment</OsButton></div>
+          )}
+        </div>
+
+        {context ? (
+          <>
+            <form
+              className="os-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                run(() => site!.testConnection(apiUser.trim(), password || undefined), 'Connection succeeded. Credentials saved for this environment and site.');
+              }}
+            >
+              <OsField label="API user" htmlFor="st-user">
+                <input id="st-user" className="os-input" autoComplete="username" value={apiUser} onChange={(e) => setApiUser(e.target.value)} required />
+              </OsField>
+              <OsField label="Password" htmlFor="st-pwd" hint={settings?.hasPassword ? 'A password is saved. Leave empty to keep it.' : undefined}>
+                <input id="st-pwd" type="password" className="os-input" autoComplete="current-password" value={password} placeholder={settings?.hasPassword ? '••••••••' : ''}
+                  onChange={(e) => setPassword(e.target.value)} required={!settings?.hasPassword} />
+              </OsField>
+              <div><OsButton type="submit" icon="check" disabled={busy}>Test and save connection</OsButton></div>
+            </form>
+            <p className="os-hint" style={{ margin: 0 }}>
+              Last token: {fmt(settings?.tokenAt ?? null)}. The token is requested with POST /login and kept server side; the password is stored encrypted and never sent back to the browser.
+            </p>
+          </>
+        ) : (
+          <OsAlert>Enter and save the environment and the site ID to set the API credentials.</OsAlert>
+        )}
+      </section>
+
+      <section className="os-card os-col" style={{ gap: 16 }}>
+        <h3 className="os-title-s" style={{ margin: 0 }}>Data retrieved{selectedMode === 'static' ? ' (static data)' : ''}</h3>
         <OsField label="Order line statuses to retrieve" htmlFor="st-status"
-          hint={dynamic ? 'OneStock line item states, e.g. new, out_of_stock. Only lines in these states are loaded.' : 'Statuses of the sample order lines.'}>
+          hint={selectedMode === 'dynamic' ? 'OneStock line item states, e.g. new, out_of_stock. Only lines in these states are loaded.' : 'Statuses of the sample order lines.'}>
           <div className="os-row">
             {statuses.map((s) => (
               <OsTag key={s} color="grey" onClose={() => setStatuses(statuses.filter((x) => x !== s))}>{s}</OsTag>
@@ -131,16 +231,13 @@ export const SettingsTab: React.FC<{ source: DataSource; onSaved: () => void }> 
             <OsButton kind="secondary" icon="add" onClick={addStatus} disabled={!newStatus.trim()}>Add</OsButton>
           </div>
         </OsField>
-        {dynamic && (
+        {selectedMode === 'dynamic' && (
           <OsField label="Supplier stock point type" htmlFor="st-type" hint='Value of the "endpoint_type" classification that identifies supplier stock points.'>
             <input id="st-type" className="os-input" style={{ maxWidth: 280 }} value={supplierType} onChange={(e) => setSupplierType(e.target.value)} />
           </OsField>
         )}
         <div className="os-row" style={{ justifyContent: 'flex-end' }}>
-          <OsButton icon="save" disabled={busy || !statuses.length}
-            onClick={() => run(() => source.saveSettings({ lineStatuses: statuses, ...(dynamic ? { supplierType: supplierType.trim() || 'supplier' } : {}) }), 'Settings saved.')}>
-            Save settings
-          </OsButton>
+          <OsButton icon="save" disabled={busy || !statuses.length || (selectedMode === 'dynamic' && !context)} onClick={saveData}>Save settings</OsButton>
         </div>
       </section>
     </div>

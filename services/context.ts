@@ -1,10 +1,10 @@
 // OneStock UI extension context: environment + site_id of the back-office session that opened the extension.
 // Read, in order: URL query or hash parameters (site_id / siteId, env / environment), then a postMessage
-// sent by the host window ({ site_id, env } at the root or under `context`). In development only, a manual
-// context can be stored locally (see setDevContext).
-export type HostContext = { env: string; siteId: string; source: 'url' | 'host' | 'dev' };
+// sent by the host window ({ site_id, env } at the root or under `context`). When the host sends none,
+// the environment and site ID entered in the settings tab are used (kept in this browser).
+export type HostContext = { env: string; siteId: string; source: 'url' | 'host' | 'manual' };
 
-const DEV_KEY = 'wave-orchestrator.dev-context';
+const MANUAL_KEY = 'wave-orchestrator.manual-context';
 
 function pick(o: Record<string, unknown> | URLSearchParams | null | undefined, keys: string[]): string | undefined {
   if (!o) return undefined;
@@ -32,31 +32,32 @@ function fromObject(o: Record<string, unknown> | URLSearchParams | null | undefi
   return siteId && env ? { siteId: siteId.toLowerCase(), env: normalizeEnv(env), source } : null;
 }
 
-export function setDevContext(ctx: { env: string; siteId: string } | null) {
+/** Saves (or clears) the environment and site ID entered in the settings tab. */
+export function setManualContext(ctx: { env: string; siteId: string } | null): HostContext | null {
   try {
-    if (ctx) localStorage.setItem(DEV_KEY, JSON.stringify(ctx));
-    else localStorage.removeItem(DEV_KEY);
+    if (ctx) localStorage.setItem(MANUAL_KEY, JSON.stringify(ctx));
+    else localStorage.removeItem(MANUAL_KEY);
   } catch {
     /* storage unavailable */
   }
+  return ctx ? fromObject(ctx, 'manual') : null;
 }
 
-function devContext(): HostContext | null {
-  if (!import.meta.env.DEV) return null;
+export function getManualContext(): HostContext | null {
   try {
-    const v = JSON.parse(localStorage.getItem(DEV_KEY) || 'null');
-    return v ? fromObject(v, 'dev') : null;
+    const v = JSON.parse(localStorage.getItem(MANUAL_KEY) || 'null');
+    return v ? fromObject(v, 'manual') : null;
   } catch {
     return null;
   }
 }
 
-/** Resolves the context; waits up to `timeoutMs` for the host's postMessage when the URL carries none. */
+/** Resolves the host context (URL, then postMessage), else the manual one; null when neither exists. */
 export function resolveHostContext(timeoutMs = 2000): Promise<HostContext | null> {
   const url = new URL(window.location.href);
   const direct = fromObject(url.searchParams, 'url') || fromObject(new URLSearchParams(url.hash.replace(/^#/, '')), 'url');
   if (direct) return Promise.resolve(direct);
-  if (window.parent === window) return Promise.resolve(devContext());
+  if (window.parent === window) return Promise.resolve(getManualContext());
 
   return new Promise((resolve) => {
     const done = (ctx: HostContext | null) => {
@@ -70,7 +71,7 @@ export function resolveHostContext(timeoutMs = 2000): Promise<HostContext | null
       const ctx = fromObject(data, 'host') || fromObject(data.context as Record<string, unknown>, 'host') || fromObject(data.payload as Record<string, unknown>, 'host');
       if (ctx) done(ctx);
     };
-    const timer = setTimeout(() => done(devContext()), timeoutMs);
+    const timer = setTimeout(() => done(getManualContext()), timeoutMs);
     window.addEventListener('message', onMessage);
     window.parent.postMessage({ type: 'wave-orchestrator:ready', request: 'context' }, '*');
   });

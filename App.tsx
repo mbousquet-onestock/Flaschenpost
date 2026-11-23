@@ -5,11 +5,11 @@ import { StrategyDashboard } from './components/StrategyDashboard';
 import { PricingTab } from './components/PricingTab';
 import { SettingsTab } from './components/SettingsTab';
 import { ExtensionLayout, PageHeader } from './components/Layout';
-import { OsAlert, OsButton, OsField, OsLoading, OsStepper, OsTabs } from './components/os';
+import { OsAlert, OsButton, OsLoading, OsStepper, OsTabs } from './components/os';
 import { Step, Scenario, OrchestrationConfig, Dataset } from './types';
 import { MOCK_SCENARIOS } from './constants';
-import { HostContext, resolveHostContext, setDevContext } from './services/context';
-import { createDataSource, DATA_MODE } from './services/dataSource';
+import { HostContext, resolveHostContext, setManualContext } from './services/context';
+import { createDataSource, DataMode, DEFAULT_MODE, loadSavedMode } from './services/dataSource';
 
 const DEFAULT_CONFIG: OrchestrationConfig = {
   statuses: ['Placed', 'Out Of Stock'],
@@ -30,19 +30,6 @@ const settingsRequested = () => {
   return u.searchParams.has('settings') || /(^|[#&])settings\b/.test(u.hash);
 };
 
-/** Development helper when no OneStock context is available (dynamic version, local run only). */
-const DevContextForm: React.FC = () => {
-  const [env, setEnv] = useState('qualif');
-  const [siteId, setSiteId] = useState('c00');
-  return (
-    <form className="os-card os-row" style={{ alignItems: 'flex-end' }} onSubmit={(e) => { e.preventDefault(); setDevContext({ env, siteId }); window.location.reload(); }}>
-      <OsField label="Environment" htmlFor="dev-env"><input id="dev-env" className="os-input" value={env} onChange={(e) => setEnv(e.target.value)} /></OsField>
-      <OsField label="Site ID" htmlFor="dev-site"><input id="dev-site" className="os-input" value={siteId} onChange={(e) => setSiteId(e.target.value)} /></OsField>
-      <OsButton type="submit">Use this context (development)</OsButton>
-    </form>
-  );
-};
-
 const App: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>(Step.StrategyManagement);
   const [scenarios, setScenarios] = useState<Scenario[]>(MOCK_SCENARIOS);
@@ -52,11 +39,22 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(settingsRequested());
 
   // ---------- context and data ----------
-  const [context, setContext] = useState<HostContext | null | undefined>(DATA_MODE === 'static' ? null : undefined);
+  // Context (environment + site ID) from OneStock or the settings, and the data source saved for that site.
+  const [context, setContext] = useState<HostContext | null | undefined>(undefined);
+  const [mode, setMode] = useState<DataMode | undefined>(undefined);
   useEffect(() => {
-    if (DATA_MODE === 'dynamic') resolveHostContext().then(setContext);
+    resolveHostContext().then(async (ctx) => {
+      setContext(ctx);
+      setMode((ctx && (await loadSavedMode(ctx))) || DEFAULT_MODE);
+    });
   }, []);
-  const source = useMemo(() => (context === undefined ? null : createDataSource(context)), [context]);
+  const source = useMemo(() => (context === undefined || !mode ? null : createDataSource(mode, context)), [context, mode]);
+
+  const changeContext = (ctx: { env: string; siteId: string }) => {
+    const next = setManualContext(ctx);
+    setContext(next);
+    if (next) loadSavedMode(next).then((m) => setMode(m || DEFAULT_MODE));
+  };
 
   const [data, setData] = useState<Dataset | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -65,6 +63,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!source) return;
     let alive = true;
+    setData(null);
     setDataError(null);
     source.loadDataset().then(
       (d) => alive && setData(d),
@@ -119,27 +118,14 @@ const App: React.FC = () => {
   const inFlow = currentStep !== Step.StrategyManagement;
 
   // ---------- rendering ----------
-  if (context === undefined) {
-    return <ExtensionLayout><OsLoading text="Reading the OneStock context" /></ExtensionLayout>;
-  }
-
   if (!source) {
-    return (
-      <ExtensionLayout>
-        <div className="os-col">
-          <OsAlert color="red">
-            The OneStock context (environment and site ID) was not received. Open Wave Orchestrator from the OneStock back-office.
-          </OsAlert>
-          {import.meta.env.DEV && <DevContextForm />}
-        </div>
-      </ExtensionLayout>
-    );
+    return <ExtensionLayout><OsLoading text="Reading the OneStock context" /></ExtensionLayout>;
   }
 
   const dataState = dataError ? (
     <OsAlert color="red">
       Data could not be loaded: {dataError}
-      {source.mode === 'dynamic' && ' Check the connection and the order line statuses in the settings.'}
+      {source.mode === 'dynamic' && ' Check the environment connection and the order line statuses in the settings.'}
     </OsAlert>
   ) : !data ? (
     <OsLoading text="Loading orders, suppliers and prices" />
@@ -200,7 +186,9 @@ const App: React.FC = () => {
           </>
         )}
         {tab === 'prices' && <PricingTab source={source} onDataChanged={reloadData} />}
-        {tab === 'settings' && showSettings && <SettingsTab source={source} onSaved={reloadData} />}
+        {tab === 'settings' && showSettings && (
+          <SettingsTab context={context ?? null} mode={source.mode} onModeChange={setMode} onContextChange={changeContext} onSaved={reloadData} />
+        )}
       </div>
     </ExtensionLayout>
   );
