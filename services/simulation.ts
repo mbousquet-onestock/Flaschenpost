@@ -84,7 +84,15 @@ export function orderDateRange(f: OrderDateFilter, now = new Date()): [number, n
 
 export function simulate(data: Dataset, config: OrchestrationConfig): SimulationResult {
   const range = config.orderDate ? orderDateRange(config.orderDate) : undefined;
+  const terms = (q?: string) => (q ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const customerTerms = terms(config.customerQuery);
+  const itemTerms = terms(config.itemQuery);
+  const itemNames = new Map(data.items.map((i) => [i.id, i.name.toLowerCase()]));
   const lines = data.lines.filter((l) => {
+    if (config.salesChannels && !config.salesChannels.includes(l.channel ?? '')) return false;
+    if (config.orderTypes && !(l.orderTypes ?? []).some((x) => config.orderTypes!.includes(x))) return false;
+    if (customerTerms.length && !customerTerms.some((q) => (l.customer ?? '').toLowerCase().includes(q))) return false;
+    if (itemTerms.length && !itemTerms.some((q) => l.sku.toLowerCase().includes(q) || (itemNames.get(l.sku) ?? '').includes(q))) return false;
     if (config.statuses.length && !config.statuses.includes(l.status)) return false;
     if (range) {
       // Lines without an order date are left out when a date condition is set.

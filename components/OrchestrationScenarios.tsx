@@ -9,9 +9,12 @@ interface OrchestrationScenariosProps {
   /** Order line statuses that can be selected (from the settings). */
   statusOptions: string[];
   suppliers: SupplierRef[];
+  /** Sales channels and order types found in the loaded order lines. */
+  channelOptions: string[];
+  typeOptions: string[];
 }
 
-type Condition = 'status' | 'date' | 'type' | 'rank' | 'suppliers';
+type Condition = 'status' | 'date' | 'channel' | 'otype' | 'customer' | 'item' | 'type' | 'rank' | 'suppliers';
 type Menu = Condition | 'add-order' | 'add-stock' | null;
 
 const TYPES: { value: StockPointType; label: string }[] = [
@@ -24,7 +27,19 @@ const MODES: { value: ConsolidationMode; title: string; text: string }[] = [
   { value: 'cheapest_price', title: 'Cheapest purchase price', text: 'Groups quantities to reach the best unit price tier per SKU.' },
   { value: 'cheapest_price_franco', title: 'Price and Franco optimisation', text: 'Optimises both the unit price and reaching the free shipping threshold (Franco).' },
 ];
-const LABELS: Record<Condition, string> = { status: 'Status', date: 'Creation date', type: 'Type', rank: 'Rank', suppliers: 'Suppliers' };
+const LABELS: Record<Condition, string> = {
+  status: 'Status', date: 'Creation date', channel: 'Sales channel', otype: 'Order type', customer: 'Customer', item: 'Item',
+  type: 'Type', rank: 'Rank', suppliers: 'Suppliers',
+};
+const ORDER_CONDITIONS: Condition[] = ['status', 'date', 'channel', 'otype', 'customer', 'item'];
+
+/** Editor of a text condition: several values separated by commas, matched as "contains". */
+const TextEditor: React.FC<{ id: string; value: string; placeholder: string; onChange: (v: string) => void; onDone: () => void }> = ({ id, value, placeholder, onChange, onDone }) => (
+  <div className="os-col" style={{ gap: 4, padding: 8 }}>
+    <input id={id} className="os-input" autoFocus value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onDone()} />
+    <span className="os-hint">{t('Contains one of the values; separate several values with commas.')}</span>
+  </div>
+);
 
 /** Quick choices for the order creation date: [label, from D-n, to D-n]. */
 const DATE_PRESETS: [string, number, number][] = [
@@ -98,7 +113,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   </section>
 );
 
-export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ config, onChange, statusOptions, suppliers }) => {
+export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ config, onChange, statusOptions, suppliers, channelOptions, typeOptions }) => {
   const [activeMenu, setActiveMenu] = useState<Menu>(null);
   const close = () => setActiveMenu(null);
   const toggle = (m: Exclude<Menu, null>) => setActiveMenu((cur) => (cur === m ? null : m));
@@ -106,6 +121,10 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
   const has: Record<Condition, boolean> = {
     status: config.statuses.length > 0,
     date: !!config.orderDate,
+    channel: config.salesChannels !== undefined,
+    otype: config.orderTypes !== undefined,
+    customer: config.customerQuery !== undefined,
+    item: config.itemQuery !== undefined,
     type: !!config.stockPointType,
     rank: !!config.stockPointRank,
     suppliers: config.selectedSupplierIds !== undefined,
@@ -114,15 +133,23 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
   const add = (c: Condition) => {
     if (c === 'status') onChange({ ...config, statuses: statusOptions.length ? [...statusOptions] : config.statuses });
     if (c === 'date') onChange({ ...config, orderDate: { mode: 'relative', fromDays: 7, toDays: 1 } });
+    if (c === 'channel') onChange({ ...config, salesChannels: [...channelOptions] });
+    if (c === 'otype') onChange({ ...config, orderTypes: [...typeOptions] });
+    if (c === 'customer') onChange({ ...config, customerQuery: '' });
+    if (c === 'item') onChange({ ...config, itemQuery: '' });
     if (c === 'type') onChange({ ...config, stockPointType: 'supplier' });
     if (c === 'rank') onChange({ ...config, stockPointRank: 'P1' });
     if (c === 'suppliers') onChange({ ...config, selectedSupplierIds: [] });
-    setActiveMenu(c === 'status' || c === 'suppliers' || c === 'date' ? c : null);
+    setActiveMenu(['status', 'suppliers', 'date', 'channel', 'otype', 'customer', 'item'].includes(c) ? c : null);
   };
 
   const remove = (c: Condition) => {
     if (c === 'status') onChange({ ...config, statuses: [] });
     if (c === 'date') onChange({ ...config, orderDate: undefined });
+    if (c === 'channel') onChange({ ...config, salesChannels: undefined });
+    if (c === 'otype') onChange({ ...config, orderTypes: undefined });
+    if (c === 'customer') onChange({ ...config, customerQuery: undefined });
+    if (c === 'item') onChange({ ...config, itemQuery: undefined });
     if (c === 'type') onChange({ ...config, stockPointType: undefined });
     if (c === 'rank') onChange({ ...config, stockPointRank: undefined });
     if (c === 'suppliers') onChange({ ...config, selectedSupplierIds: undefined });
@@ -133,6 +160,24 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
     const statuses = config.statuses.includes(status) ? config.statuses.filter((s) => s !== status) : [...config.statuses, status];
     if (statuses.length) onChange({ ...config, statuses });
   };
+
+  /** Toggles a value of a list condition; the last value cannot be unchecked (remove the condition instead). */
+  const toggleIn = (list: string[], v: string) => {
+    const next = list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+    return next.length ? next : list;
+  };
+
+  const checkList = (title: string, options: string[], selected: string[], set: (next: string[]) => void, empty: string) => (
+    <>
+      <div className="os-float-head"><span className="os-body-l t-secondary">{title}</span></div>
+      {options.length === 0 && <div className="os-opt t-secondary">{empty}</div>}
+      <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+        {options.map((v) => (
+          <div key={v}><OsCheckbox checked={selected.includes(v)} onChange={() => set(toggleIn(selected, v))} label={v} /></div>
+        ))}
+      </div>
+    </>
+  );
 
   const toggleSupplier = (id: string) => {
     const cur = config.selectedSupplierIds || [];
@@ -145,7 +190,9 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
         <span className="muted">
           {c === 'date'
             ? t('{category} · {field}:', { category: t(category), field: t(LABELS[c]) })
-            : t('{category} · {field} in', { category: t(category), field: t(LABELS[c]) })}{' '}
+            : c === 'customer' || c === 'item'
+              ? t('{category} · {field} contains', { category: t(category), field: t(LABELS[c]) })
+              : t('{category} · {field} in', { category: t(category), field: t(LABELS[c]) })}{' '}
         </span>
         {value}
       </OsTag>
@@ -199,7 +246,35 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
             ), 440)}
           </div>
         )}
-        <div className="os-row">{addButton('add-order', ['status', 'date'])}</div>
+        {config.salesChannels && (
+          <div className="os-row">
+            {tag('channel', 'Order information', config.salesChannels.join(', ') || t('None'),
+              checkList(t('Sales channel'), channelOptions, config.salesChannels, (salesChannels) => onChange({ ...config, salesChannels }), t('No sales channel in the loaded orders')), 260)}
+          </div>
+        )}
+        {config.orderTypes && (
+          <div className="os-row">
+            {tag('otype', 'Order information', config.orderTypes.join(', ') || t('None'),
+              checkList(t('Order type'), typeOptions, config.orderTypes, (orderTypes) => onChange({ ...config, orderTypes }), t('No order type in the loaded orders')), 260)}
+          </div>
+        )}
+        {config.customerQuery !== undefined && (
+          <div className="os-row">
+            {tag('customer', 'Order information', config.customerQuery.trim() || t('(to fill in)'), (
+              <TextEditor id="cond-customer" value={config.customerQuery} placeholder={t('Name or email')}
+                onChange={(customerQuery) => onChange({ ...config, customerQuery })} onDone={close} />
+            ), 360)}
+          </div>
+        )}
+        {config.itemQuery !== undefined && (
+          <div className="os-row">
+            {tag('item', 'Order information', config.itemQuery.trim() || t('(to fill in)'), (
+              <TextEditor id="cond-item" value={config.itemQuery} placeholder={t('SKU or name')}
+                onChange={(itemQuery) => onChange({ ...config, itemQuery })} onDone={close} />
+            ), 360)}
+          </div>
+        )}
+        <div className="os-row">{addButton('add-order', ORDER_CONDITIONS)}</div>
         {!has.status && <p className="os-label-s t-secondary" style={{ margin: 0 }}>{t('No condition: order lines of every configured status are taken.')}</p>}
       </Section>
 

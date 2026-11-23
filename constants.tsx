@@ -64,6 +64,7 @@ export const MOCK_ORDERS: Order[] = Array.from({ length: 200 }).map((_, i) => {
     // Spread over the last 10 days so that the order date condition can be tried.
     date: new Date(Date.now() - (i % 10) * 86_400_000).toISOString().slice(0, 10),
     channel: i % 2 === 0 ? 'Retail' : 'E-commerce',
+    types: [['home_delivery'], ['click_and_collect'], ['ship_from_store']][i % 3],
     status: statusOptions[Math.floor(Math.random() * statusOptions.length)],
   };
 });

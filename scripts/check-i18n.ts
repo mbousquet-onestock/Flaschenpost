@@ -8,7 +8,7 @@ const walk = (d: string) => readdirSync(d).forEach((f) => { const p = join(d, f)
 const keys = new Set<string>();
 const re = /\bt\(\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")/g;
 for (const f of files) for (const m of readFileSync(f, 'utf8').matchAll(re)) keys.add(eval(m[1]));
-const dynamic = ['Creation date', 'Today', 'Yesterday', 'Last 7 days', 'D-7 to D-1', 'D-30 to D-1', 'Status', 'Type', 'Rank', 'Suppliers', 'Order information', 'Stock point', 'Warehouse', 'Supplier', 'Active', 'Scheduled', 'Draft',
+const dynamic = ['Sales channel', 'Order type', 'Customer', 'Creation date', 'Today', 'Yesterday', 'Last 7 days', 'D-7 to D-1', 'D-30 to D-1', 'Status', 'Type', 'Rank', 'Suppliers', 'Order information', 'Stock point', 'Warehouse', 'Supplier', 'Active', 'Scheduled', 'Draft',
   'Cheapest purchase price', 'Price and Franco optimisation', 'Groups quantities to reach the best unit price tier per SKU.',
   'Optimises both the unit price and reaching the free shipping threshold (Franco).', 'Static', 'Dynamic',
   'Sample orders, items and suppliers. Prices and statuses are kept in this browser.',

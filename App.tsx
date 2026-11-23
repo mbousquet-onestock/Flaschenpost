@@ -277,7 +277,9 @@ const App: React.FC = () => {
           {launchError && <OsAlert color="red">{launchError}</OsAlert>}
           {dataState ??
             (currentStep === Step.OrchestrationScenarios ? (
-              <OrchestrationScenarios config={orchestrationConfig} onChange={setOrchestrationConfig} statusOptions={data!.statusOptions} suppliers={data!.suppliers} />
+              <OrchestrationScenarios config={orchestrationConfig} onChange={setOrchestrationConfig} statusOptions={data!.statusOptions} suppliers={data!.suppliers}
+                channelOptions={[...new Set(data!.lines.map((l) => l.channel).filter((x): x is string => !!x))].sort()}
+                typeOptions={[...new Set(data!.lines.flatMap((l) => l.orderTypes ?? []))].sort()} />
             ) : (
               <ResultsVisualization strategyName={strategyName} config={orchestrationConfig} data={data!} onNext={launch} launching={launching} />
             ))}

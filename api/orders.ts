@@ -13,7 +13,10 @@ export const GET = handle(async (req) => {
   const statuses = cfg?.line_statuses ?? [];
   if (!statuses.length) throw new HttpError(409, 'No order line status is configured for this site');
 
-  const lines: { id: string; orderId: string; date: number | string | null; sku: string; quantity: number; status: string; channel?: string }[] = [];
+  const lines: {
+    id: string; orderId: string; date: number | string | null; sku: string; quantity: number; status: string;
+    channel?: string; orderTypes?: string[]; customer?: string;
+  }[] = [];
   let truncated = false;
   for (let page = 0; page < MAX_PAGES; page++) {
     const r = await call(t, '/orders', {
@@ -21,6 +24,10 @@ export const GET = handle(async (req) => {
         'id',
         'date',
         'sales_channel',
+        'types',
+        'customer.first_name',
+        'customer.last_name',
+        'customer.email',
         'line_item_groups.id',
         'line_item_groups.item_id',
         'line_item_groups.quantity',
@@ -31,6 +38,9 @@ export const GET = handle(async (req) => {
     });
     const orders = (r?.orders ?? []) as any[];
     for (const o of orders) {
+      const c = o.customer ?? {};
+      const name = [c.first_name, c.last_name].filter(Boolean).join(' ');
+      const customer = [name, c.email ? `<${c.email}>` : ''].filter(Boolean).join(' ') || undefined;
       for (const g of o.line_item_groups ?? []) {
         if (!statuses.includes(g.state)) continue;
         lines.push({
@@ -41,6 +51,8 @@ export const GET = handle(async (req) => {
           quantity: Number(g.quantity) || 0,
           status: String(g.state),
           channel: o.sales_channel,
+          orderTypes: Array.isArray(o.types) ? o.types.map(String) : undefined,
+          customer,
         });
       }
     }

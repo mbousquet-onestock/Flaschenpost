@@ -98,7 +98,7 @@ export const staticSource: DataSource = {
     return {
       lines: MOCK_ORDERS.map((o) => ({ ...o, status: s.lineStatusChanges?.[o.id] ?? o.status }))
         .filter((o) => statuses.includes(o.status))
-        .map((o) => ({ id: o.id, orderId: o.id, sku: o.sku, quantity: o.quantity, status: o.status, priority: o.priority, date: o.date })),
+        .map((o) => ({ id: o.id, orderId: o.id, sku: o.sku, quantity: o.quantity, status: o.status, priority: o.priority, date: o.date, channel: o.channel, orderTypes: o.types, customer: `${o.client} <client${o.id.slice(4)}@example.com>` })),
       items: await this.listItems(),
       suppliers: (await this.listSuppliers()).suppliers,
       prices: s.prices ?? defaultPrices(),

@@ -36,6 +36,14 @@ export interface OrchestrationConfig {
   selectedSupplierIds?: string[];
   /** Order creation date; undefined = no date condition. */
   orderDate?: OrderDateFilter;
+  /** Sales channels to take; undefined = no condition. */
+  salesChannels?: string[];
+  /** Order types to take (an order matches when one of its types is listed); undefined = no condition. */
+  orderTypes?: string[];
+  /** Customer name or email contains one of these comma-separated texts; undefined = no condition. */
+  customerQuery?: string;
+  /** Item SKU or name contains one of these comma-separated texts; undefined = no condition. */
+  itemQuery?: string;
 }
 
 /**
@@ -89,6 +97,7 @@ export interface Order {
   channel: string;
   status: string;
   proposedStockPoint?: string;
+  types?: string[];
 }
 
 export enum Step {
@@ -152,6 +161,12 @@ export interface OrderLine {
   priority?: 'P1' | 'P2' | 'P3';
   /** Creation date of the order: Unix timestamp (s or ms) or ISO date. */
   date?: number | string | null;
+  /** Sales channel of the order. */
+  channel?: string;
+  /** Types of the order (e.g. ffs, ckc). */
+  orderTypes?: string[];
+  /** Customer: "First Last <email>". */
+  customer?: string;
 }
 
 export interface Dataset {
