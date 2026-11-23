@@ -4,7 +4,7 @@
 //    (dearer unit price, but franco reached or lower shipping fees) while the total purchase cost
 //    (goods + shipping fees) decreases. When a supplier's franco is not reached,
 // its shipping fee is added: a fixed amount, an amount per kg (item weights) or an amount per unit.
-import type { Dataset, OrchestrationConfig, PriceTier, ShippingMode } from '../types';
+import type { Dataset, NewPurchaseOrder, OrchestrationConfig, PriceTier, PurchaseOrderSource, ShippingMode } from '../types';
 
 /** Shipping fee of a supplier whose franco is not reached. */
 export interface SupplierShipping {
@@ -32,8 +32,8 @@ export interface GroupedResult {
   shippingFee?: number;
   /** Set when the optimisation chose another supplier than the cheapest one for this SKU. */
   cheapest?: { supplierName: string; unitPrice: number };
-  /** Orders whose lines make up this purchase line. */
-  orderIds: string[];
+  /** Order lines (OneStock line item groups) supplied by this purchase line. */
+  orderLines: PurchaseOrderSource[];
 }
 
 export interface SimulationResult {
@@ -69,10 +69,10 @@ export function simulate(data: Dataset, config: OrchestrationConfig): Simulation
   });
 
   const skuTotals = new Map<string, number>();
-  const ordersBySku = new Map<string, Set<string>>();
+  const linesBySku = new Map<string, PurchaseOrderSource[]>();
   lines.forEach((l) => {
     skuTotals.set(l.sku, (skuTotals.get(l.sku) || 0) + l.quantity);
-    ordersBySku.set(l.sku, (ordersBySku.get(l.sku) ?? new Set()).add(l.orderId));
+    linesBySku.set(l.sku, [...(linesBySku.get(l.sku) ?? []), { id: l.id, orderId: l.orderId, status: l.status, quantity: l.quantity }]);
   });
 
   const selected = config.selectedSupplierIds || [];
@@ -235,7 +235,7 @@ export function simulate(data: Dataset, config: OrchestrationConfig): Simulation
           supplierName: supplier.name,
           supplierId,
           totalQuantity: skuTotals.get(sku)!,
-          orderIds: [...(ordersBySku.get(sku) ?? [])].sort(),
+          orderLines: linesBySku.get(sku) ?? [],
           unitPrice,
           totalAmount: unitPrice * skuTotals.get(sku)!,
           francoReached: b.francoReached,
@@ -269,4 +269,34 @@ export function simulate(data: Dataset, config: OrchestrationConfig): Simulation
     baselineAmount: baseline.total,
     reassigned: results.filter((r) => r.cheapest).length,
   };
+}
+
+/** One purchase order per supplier of a simulation; suppliers blocked below their franco are left out. */
+export function toPurchaseOrders(sim: SimulationResult, config: OrchestrationConfig, strategy?: { id: string; name: string }): NewPurchaseOrder[] {
+  const bySupplier = new Map<string, GroupedResult[]>();
+  sim.results.forEach((r) => bySupplier.set(r.supplierId, [...(bySupplier.get(r.supplierId) ?? []), r]));
+  const orders: NewPurchaseOrder[] = [];
+  bySupplier.forEach((rows, supplierId) => {
+    if (config.blockIfFrancoNotMet && !rows[0].francoReached) return;
+    const goodsAmount = rows.reduce((s, r) => s + r.totalAmount, 0);
+    const shippingFee = rows.reduce((s, r) => s + (r.shippingFee || 0), 0);
+    orders.push({
+      supplierId,
+      supplierName: rows[0].supplierName,
+      strategyId: strategy?.id,
+      strategyName: strategy?.name,
+      lines: rows.map((r) => ({
+        sku: r.sku,
+        productName: r.productName,
+        quantity: r.totalQuantity,
+        unitPrice: r.unitPrice,
+        amount: Math.round(r.totalAmount * 100) / 100,
+        orderLines: r.orderLines,
+      })),
+      goodsAmount: Math.round(goodsAmount * 100) / 100,
+      shippingFee: Math.round(shippingFee * 100) / 100,
+      total: Math.round((goodsAmount + shippingFee) * 100) / 100,
+    });
+  });
+  return orders;
 }

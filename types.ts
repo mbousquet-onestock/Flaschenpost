@@ -162,12 +162,51 @@ export interface Settings {
   supplierType: string;
   /** Data source saved for the site (dynamic version only); null when not set. */
   dataMode?: 'static' | 'dynamic' | null;
+  /** Status given to the order lines of a strategy when it is launched; empty = no change. */
+  launchStatus?: string;
 }
 
 export interface SettingsUpdate {
   dataMode?: 'static' | 'dynamic';
+  launchStatus?: string;
   apiUser?: string;
   password?: string;
   lineStatuses?: string[];
   supplierType?: string;
 }
+
+// ---------- Supplier purchase orders created by Launch ----------
+
+/** Order line (OneStock line item group) supplied by a purchase line. */
+export interface PurchaseOrderSource {
+  id: string;
+  orderId: string;
+  status: string;
+  quantity: number;
+}
+
+export interface PurchaseOrderLine {
+  sku: string;
+  productName?: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  orderLines: PurchaseOrderSource[];
+}
+
+export interface PurchaseOrder {
+  id: string;
+  createdAt: string;
+  supplierId: string;
+  supplierName: string;
+  strategyId?: string;
+  strategyName?: string;
+  lines: PurchaseOrderLine[];
+  goodsAmount: number;
+  shippingFee: number;
+  total: number;
+  /** Result of the order line status change; null when no status after launch is set. */
+  statusUpdate: { target: string; updated: number; failed: { lineId: string; orderId: string; error: string }[] } | null;
+}
+
+export type NewPurchaseOrder = Omit<PurchaseOrder, 'id' | 'createdAt' | 'statusUpdate'>;

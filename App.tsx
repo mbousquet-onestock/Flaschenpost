@@ -9,8 +9,9 @@ import { OsAlert, OsButton, OsLoading, OsStepper, OsTabs } from './components/os
 import { Step, Scenario, OrchestrationConfig, Dataset } from './types';
 import { HostContext, resolveHostContext, setManualContext } from './services/context';
 import { createDataSource, DataMode, DEFAULT_MODE, loadSavedMode } from './services/dataSource';
-import { simulate } from './services/simulation';
-import { date, t } from './services/i18n';
+import { simulate, toPurchaseOrders } from './services/simulation';
+import { PurchaseOrdersTab } from './components/PurchaseOrdersTab';
+import { date, money, t } from './services/i18n';
 
 const DEFAULT_CONFIG: OrchestrationConfig = {
   statuses: ['Placed', 'Out Of Stock'],
@@ -42,7 +43,7 @@ function nextRun(schedule: { days: number[]; times: string[] }): string | undefi
   return undefined;
 }
 
-type Tab = 'strategies' | 'prices' | 'settings';
+type Tab = 'strategies' | 'purchases' | 'prices' | 'settings';
 
 /** ?settings (or #settings) in the URL opens the settings tab directly. */
 const settingsRequested = () => {
@@ -129,6 +130,7 @@ const App: React.FC = () => {
 
   // ---------- strategy flow ----------
   const openStrategy = (strategy: Scenario, step: Step) => {
+    setLaunchError(null);
     setCurrent(strategy);
     if (strategy.config) {
       // Keep only the statuses available in the current data (an empty list means no status condition).
@@ -140,6 +142,7 @@ const App: React.FC = () => {
   };
 
   const handleCreateNew = () => {
+    setLaunchError(null);
     setCurrent({
       id: `ST-${Date.now().toString(36)}`,
       name: t('New strategy {date}', { date: date(new Date()) }),
@@ -190,6 +193,46 @@ const App: React.FC = () => {
     setCurrentStep(Step.StrategyManagement);
   };
 
+  // ---------- launch: supplier purchase orders + order line status change ----------
+  const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const [launchNotice, setLaunchNotice] = useState<string | null>(null);
+
+  const launch = async () => {
+    if (!current || !data || !source) return;
+    const sim = simulate(data, orchestrationConfig);
+    const orders = toPurchaseOrders(sim, orchestrationConfig, { id: current.id, name: current.name });
+    if (!orders.length) return setLaunchError(t('Nothing to order: no supplier can be ordered from with this scenario.'));
+    const target = (await source.getSettings().catch(() => null))?.launchStatus || '';
+    const lineCount = orders.reduce((n, o) => n + o.lines.reduce((m, l) => m + l.orderLines.length, 0), 0);
+    const total = money(orders.reduce((s, o) => s + o.total, 0));
+    const question =
+      t('Create {count} supplier order(s) for {amount}?', { count: orders.length, amount: total }) +
+      '\n' +
+      (target
+        ? t('{lines} order line(s) will move to the status "{status}".', { lines: lineCount, status: target })
+        : t('The order line statuses will not change: no status after launch is set in the settings.'));
+    if (!window.confirm(question)) return;
+    setLaunching(true);
+    setLaunchError(null);
+    try {
+      const r = await source.launch(orders);
+      await saveCurrent(true);
+      setLaunchNotice(
+        t('{count} supplier order(s) created.', { count: r.purchaseOrders.length }) +
+          (r.target
+            ? ' ' + t('{updated} order line(s) moved to "{status}", {failed} failed.', { updated: r.updated, status: r.target, failed: r.failed })
+            : ''),
+      );
+      reloadData();
+      setTab('purchases');
+    } catch (e) {
+      setLaunchError(t('The launch failed: {error}', { error: (e as Error).message }));
+    } finally {
+      setLaunching(false);
+    }
+  };
+
   const backToDashboard = () => setCurrentStep(Step.StrategyManagement);
   const prevStep = () => setCurrentStep((s) => (s > 0 ? ((s - 1) as Step) : s));
   const nextStep = () => setCurrentStep((s) => (s < 2 ? ((s + 1) as Step) : s));
@@ -231,11 +274,12 @@ const App: React.FC = () => {
           <div className="os-card" style={{ padding: '12px 16px' }}>
             <OsStepper steps={steps()} current={currentStep - 1} onStepClick={(i) => setCurrentStep((i + 1) as Step)} />
           </div>
+          {launchError && <OsAlert color="red">{launchError}</OsAlert>}
           {dataState ??
             (currentStep === Step.OrchestrationScenarios ? (
               <OrchestrationScenarios config={orchestrationConfig} onChange={setOrchestrationConfig} statusOptions={data!.statusOptions} suppliers={data!.suppliers} />
             ) : (
-              <ResultsVisualization strategyName={strategyName} config={orchestrationConfig} data={data!} onNext={() => saveCurrent(true)} />
+              <ResultsVisualization strategyName={strategyName} config={orchestrationConfig} data={data!} onNext={launch} launching={launching} />
             ))}
         </div>
       </ExtensionLayout>
@@ -244,6 +288,7 @@ const App: React.FC = () => {
 
   const tabs: { id: Tab; label: string; discreet?: boolean }[] = [
     { id: 'strategies', label: t('Strategies') },
+    { id: 'purchases', label: t('Supplier orders') },
     { id: 'prices', label: t('Supplier prices') },
     // Invisible until hovered (or selected).
     { id: 'settings', label: t('Settings'), discreet: true },
@@ -269,6 +314,7 @@ const App: React.FC = () => {
             />
           </>
         )}
+        {tab === 'purchases' && <PurchaseOrdersTab source={source} notice={launchNotice} />}
         {tab === 'prices' && <PricingTab source={source} onDataChanged={reloadData} />}
         {tab === 'settings' && (
           <SettingsTab context={context ?? null} mode={source.mode} onModeChange={setMode} onContextChange={changeContext} onSaved={reloadData} />

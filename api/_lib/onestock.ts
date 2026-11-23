@@ -14,9 +14,9 @@ export function baseUrl(t: Tenant): string {
   return `https://${t.siteId}.${host}/${API_VERSION}`;
 }
 
-async function post(url: string, payload: unknown, getOverride: boolean) {
+async function post(url: string, payload: unknown, getOverride: boolean, method: 'POST' | 'PATCH' = 'POST') {
   const res = await fetch(url, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json', ...(getOverride ? { 'X-HTTP-Method-Override': 'GET' } : {}) },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(25_000),
@@ -51,11 +51,11 @@ async function freshToken(t: Tenant): Promise<string> {
 }
 
 /** Calls a OneStock route. GET routes are sent as POST + X-HTTP-Method-Override: GET (body allowed). */
-export async function call(t: Tenant, path: string, payload: Record<string, unknown>, method: 'GET' | 'POST' = 'GET') {
+export async function call(t: Tenant, path: string, payload: Record<string, unknown>, method: 'GET' | 'POST' | 'PATCH' = 'GET') {
   const cfg = await getConfig(t);
   let token = cfg?.token || (await freshToken(t));
   for (let attempt = 0; attempt < 2; attempt++) {
-    const r = await post(`${baseUrl(t)}${path}`, { ...payload, site_id: t.siteId, token }, method === 'GET');
+    const r = await post(`${baseUrl(t)}${path}`, { ...payload, site_id: t.siteId, token }, method === 'GET', method === 'PATCH' ? 'PATCH' : 'POST');
     if (r.ok) return r.data;
     if (r.status === 401 && attempt === 0) {
       token = await freshToken(t);

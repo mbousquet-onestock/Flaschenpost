@@ -3,7 +3,7 @@
 //  - dynamic: OneStock API through the Vercel functions, settings and prices in the database.
 // VITE_DATA_MODE only sets the default mode of a site that has none saved.
 import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SCENARIOS, MOCK_SUPPLIERS } from '../constants';
-import type { Dataset, ItemRef, ItemWeight, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
+import type { Dataset, ItemRef, ItemWeight, NewPurchaseOrder, PurchaseOrder, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
 import { api } from './api';
 import type { HostContext } from './context';
 import { t } from './i18n';
@@ -36,14 +36,25 @@ export interface DataSource {
   listStrategies(): Promise<Scenario[]>;
   saveStrategy(s: Scenario): Promise<void>;
   deleteStrategy(id: string): Promise<void>;
+  /** Supplier purchase orders created by launches, newest first. */
+  listPurchaseOrders(): Promise<PurchaseOrder[]>;
+  /** Saves the purchase orders of a launch and moves their order lines to the status after launch (settings). */
+  launch(orders: NewPurchaseOrder[]): Promise<LaunchResult>;
 }
+
+export type LaunchResult = { purchaseOrders: PurchaseOrder[]; target: string; updated: number; failed: number };
 
 /* ------------------------------------------------------------------ static ------------------------------------------------------------------ */
 
 const STATIC_KEY = 'wave-orchestrator.static-data';
 const STATIC_STATUSES = ['Placed', 'Out Of Stock', 'Supplier'];
 
-type StaticStore = { prices?: PriceTier[]; terms?: SupplierTerm[]; weights?: ItemWeight[]; lineStatuses?: string[]; strategies?: Scenario[]; localSuppliers?: { id: string; name: string }[] };
+type StaticStore = {
+  purchaseOrders?: PurchaseOrder[];
+  /** Status of sample order lines changed by a launch. */
+  lineStatusChanges?: Record<string, string>;
+  launchStatus?: string;
+  prices?: PriceTier[]; terms?: SupplierTerm[]; weights?: ItemWeight[]; lineStatuses?: string[]; strategies?: Scenario[]; localSuppliers?: { id: string; name: string }[] };
 
 function readStore(): StaticStore {
   try {
@@ -83,9 +94,9 @@ export const staticSource: DataSource = {
     const s = store();
     const statuses = s.lineStatuses ?? STATIC_STATUSES;
     return {
-      lines: MOCK_ORDERS.filter((o) => statuses.includes(o.status)).map((o) => ({
-        id: o.id, orderId: o.id, sku: o.sku, quantity: o.quantity, status: o.status, priority: o.priority,
-      })),
+      lines: MOCK_ORDERS.map((o) => ({ ...o, status: s.lineStatusChanges?.[o.id] ?? o.status }))
+        .filter((o) => statuses.includes(o.status))
+        .map((o) => ({ id: o.id, orderId: o.id, sku: o.sku, quantity: o.quantity, status: o.status, priority: o.priority })),
       items: await this.listItems(),
       suppliers: (await this.listSuppliers()).suppliers,
       prices: s.prices ?? defaultPrices(),
@@ -145,10 +156,12 @@ export const staticSource: DataSource = {
     });
   },
   async getSettings() {
-    return { apiUser: '', hasPassword: false, connected: false, tokenAt: null, lineStatuses: store().lineStatuses ?? STATIC_STATUSES, supplierType: 'supplier' };
+    const s = store();
+    return { apiUser: '', hasPassword: false, connected: false, tokenAt: null, lineStatuses: s.lineStatuses ?? STATIC_STATUSES, supplierType: 'supplier', launchStatus: s.launchStatus ?? '' };
   },
   async saveSettings(u) {
-    if (u.lineStatuses) save({ ...store(), lineStatuses: u.lineStatuses });
+    const s = store();
+    save({ ...s, ...(u.lineStatuses ? { lineStatuses: u.lineStatuses } : {}), ...(u.launchStatus !== undefined ? { launchStatus: u.launchStatus.trim() } : {}) });
   },
   async testConnection() {
     throw new Error(t('The connection to OneStock is only available in the dynamic version.'));
@@ -163,6 +176,26 @@ export const staticSource: DataSource = {
   },
   async deleteStrategy(id) {
     save({ ...store(), strategies: (store().strategies ?? MOCK_SCENARIOS).filter((x) => x.id !== id) });
+  },
+  async listPurchaseOrders() {
+    return store().purchaseOrders ?? [];
+  },
+  async launch(orders) {
+    const s = store();
+    const target = s.launchStatus ?? '';
+    const now = new Date();
+    const base = `PO-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${now.getTime().toString(36).slice(-5).toUpperCase()}`;
+    const lines = orders.flatMap((o) => o.lines.flatMap((l) => l.orderLines));
+    const created: PurchaseOrder[] = orders.map((o, i) => ({
+      ...o,
+      id: `${base}-${i + 1}`,
+      createdAt: now.toISOString(),
+      statusUpdate: target ? { target, updated: o.lines.reduce((n, l) => n + l.orderLines.length, 0), failed: [] } : null,
+    }));
+    const changes = { ...(s.lineStatusChanges ?? {}) };
+    if (target) lines.forEach((l) => (changes[l.id] = target));
+    save({ ...s, purchaseOrders: [...created, ...(s.purchaseOrders ?? [])], lineStatusChanges: changes });
+    return { purchaseOrders: created, target, updated: target ? lines.length : 0, failed: 0 };
   },
 };
 
@@ -237,6 +270,12 @@ function dynamicSource(ctx: HostContext): DataSource {
     },
     async deleteStrategy(id) {
       await api(ctx, 'strategies', { method: 'DELETE', query: { id } });
+    },
+    async listPurchaseOrders() {
+      return (await api<{ purchaseOrders: PurchaseOrder[] }>(ctx, 'purchase-orders')).purchaseOrders;
+    },
+    async launch(orders) {
+      return api<LaunchResult>(ctx, 'purchase-orders', { method: 'POST', body: { orders } });
     },
   };
   return source;

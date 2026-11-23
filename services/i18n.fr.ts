@@ -107,9 +107,6 @@ export const fr: Record<string, string> = {
   'Blocking mode is active: orders whose supplier does not reach the Franco are excluded.':
     'Mode bloquant actif : les commandes dont le fournisseur n’atteint pas le franco sont exclues.',
   'SKU / Product': 'SKU / Produit',
-  'Order {ids}': 'Commande {ids}',
-  'Orders {ids}': 'Commandes {ids}',
-  '(+{count})': '(+{count})',
   Quantity: 'Quantité',
   'Unit price': 'Prix unitaire',
   'Total amount': 'Montant total',
@@ -137,6 +134,32 @@ export const fr: Record<string, string> = {
   '{orders} orders · {lines} order lines ({rate} %) · {purchase} purchase lines':
     '{orders} commandes · {lines} lignes de commande ({rate} %) · {purchase} lignes d’achat',
   Launch: 'Lancer',
+  'Launching…': 'Lancement…',
+  'Nothing to order: no supplier can be ordered from with this scenario.': 'Rien à commander : aucun fournisseur ne peut être commandé avec ce scénario.',
+  'Create {count} supplier order(s) for {amount}?': 'Créer {count} commande(s) fournisseur pour {amount} ?',
+  '{lines} order line(s) will move to the status "{status}".': '{lines} ligne(s) de commande passeront au statut « {status} ».',
+  'The order line statuses will not change: no status after launch is set in the settings.':
+    'Les statuts des lignes de commande ne changeront pas : aucun statut après lancement n’est défini dans le paramétrage.',
+  '{count} supplier order(s) created.': '{count} commande(s) fournisseur créée(s).',
+  '{updated} order line(s) moved to "{status}", {failed} failed.': '{updated} ligne(s) de commande passée(s) au statut « {status} », {failed} en échec.',
+  'The launch failed: {error}': 'Le lancement a échoué : {error}',
+
+  // Supplier orders
+  'Supplier orders': 'Commandes fournisseurs',
+  'Purchase orders created when strategies are launched, one per supplier.': 'Commandes d’achat créées au lancement des stratégies, une par fournisseur.',
+  'Loading supplier orders': 'Chargement des commandes fournisseurs',
+  'Purchase order': 'Commande d’achat',
+  Date: 'Date',
+  Strategy: 'Stratégie',
+  Total: 'Total',
+  'Order lines': 'Lignes de commande',
+  Details: 'Détail',
+  'Goods amount': 'Montant des marchandises',
+  'No status change': 'Pas de changement de statut',
+  '{count} line(s) set to {status}': '{count} ligne(s) passée(s) en {status}',
+  '{failed} of {total} line(s) not updated': '{failed} ligne(s) sur {total} non mise(s) à jour',
+  'Order lines not moved to {status}:': 'Lignes de commande non passées en {status} :',
+  'No supplier order yet. Launch a strategy to create them.': 'Aucune commande fournisseur. Lancez une stratégie pour en créer.',
 
   // Supplier prices
   'Supplier purchase prices': 'Tarifs d’achat fournisseurs',
@@ -275,6 +298,10 @@ export const fr: Record<string, string> = {
   'Value of the "endpoint_type" classification that identifies supplier stock points.':
     'Valeur de la classification « endpoint_type » qui identifie les points de stock fournisseurs.',
   'Save settings': 'Enregistrer le paramétrage',
+  'Order line status after launch': 'Statut des lignes de commande après lancement',
+  'When a strategy is launched, its order lines move to this status (e.g. supplier_ordered). Empty: the statuses do not change.':
+    'Au lancement d’une stratégie, ses lignes de commande passent à ce statut (ex. supplier_ordered). Vide : les statuts ne changent pas.',
+  'No change': 'Aucun changement',
   'Settings saved.': 'Paramétrage enregistré.',
   'Database unavailable: {error}': 'Base de données indisponible : {error}',
   'The connection to OneStock is only available in the dynamic version.': 'La connexion à OneStock n’est disponible qu’en version dynamique.',

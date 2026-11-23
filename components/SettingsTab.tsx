@@ -42,6 +42,7 @@ export const SettingsTab: React.FC<{
   const [statuses, setStatuses] = useState<string[]>([]);
   const [newStatus, setNewStatus] = useState('');
   const [supplierType, setSupplierType] = useState('supplier');
+  const [launchStatus, setLaunchStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -52,14 +53,21 @@ export const SettingsTab: React.FC<{
         setApiAvailable(true);
         setApiUser(s.apiUser);
         setSupplierType(s.supplierType);
-        if (selectedMode === 'dynamic') setStatuses(s.lineStatuses);
+        if (selectedMode === 'dynamic') {
+          setStatuses(s.lineStatuses);
+          setLaunchStatus(s.launchStatus ?? '');
+        }
       } catch (e) {
         setApiAvailable(false);
         setSettings(null);
         if (selectedMode === 'dynamic') setError(t('Database unavailable: {error}', { error: (e as Error).message }));
       }
     }
-    if (selectedMode === 'static') setStatuses((await staticSource.getSettings()).lineStatuses);
+    if (selectedMode === 'static') {
+      const st = await staticSource.getSettings();
+      setStatuses(st.lineStatuses);
+      setLaunchStatus(st.launchStatus ?? '');
+    }
   };
 
   useEffect(() => {
@@ -125,8 +133,8 @@ export const SettingsTab: React.FC<{
     run(
       () =>
         selectedMode === 'dynamic' && site
-          ? site.save({ lineStatuses: statuses, supplierType: supplierType.trim() || 'supplier' })
-          : staticSource.saveSettings({ lineStatuses: statuses }),
+          ? site.save({ lineStatuses: statuses, supplierType: supplierType.trim() || 'supplier', launchStatus: launchStatus.trim() })
+          : staticSource.saveSettings({ lineStatuses: statuses, launchStatus: launchStatus.trim() }),
       t('Settings saved.'),
     );
 
@@ -233,6 +241,10 @@ export const SettingsTab: React.FC<{
               onChange={(e) => setNewStatus(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addStatus(); } }} />
             <OsButton kind="secondary" icon="add" onClick={addStatus} disabled={!newStatus.trim()}>{t('Add')}</OsButton>
           </div>
+        </OsField>
+        <OsField label={t('Order line status after launch')} htmlFor="st-launch"
+          hint={t('When a strategy is launched, its order lines move to this status (e.g. supplier_ordered). Empty: the statuses do not change.')}>
+          <input id="st-launch" className="os-input" style={{ maxWidth: 280 }} placeholder={t('No change')} value={launchStatus} onChange={(e) => setLaunchStatus(e.target.value)} />
         </OsField>
         {selectedMode === 'dynamic' && (
           <OsField label={t('Supplier stock point type')} htmlFor="st-type" hint={t('Value of the "endpoint_type" classification that identifies supplier stock points.')}>

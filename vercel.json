@@ -2,6 +2,7 @@
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "functions": {
     "api/orders.ts": { "maxDuration": 60 },
-    "api/suppliers.ts": { "maxDuration": 30 }
+    "api/suppliers.ts": { "maxDuration": 30 },
+    "api/purchase-orders.ts": { "maxDuration": 60 }
   }
 }

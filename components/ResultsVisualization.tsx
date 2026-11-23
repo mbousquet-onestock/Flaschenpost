@@ -13,9 +13,10 @@ interface ResultsVisualizationProps {
   config: OrchestrationConfig;
   data: Dataset;
   onNext: () => void;
+  launching?: boolean;
 }
 
-export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ strategyName, config, data, onNext }) => {
+export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ strategyName, config, data, onNext, launching }) => {
   const sim = useMemo(() => simulate(data, config), [data, config]);
   const { results, totalPurchaseAmount } = sim;
   const fulfillmentRate = pct(sim.matchedLines, sim.totalLines);
@@ -114,14 +115,7 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
                         <td className="os-body-l" style={{ whiteSpace: 'nowrap' }}>{idx === 0 ? r.supplierName : ''}</td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span className="os-body-m">
-                              <span style={{ color: reached ? 'var(--text-brand)' : undefined }}>{r.sku}</span>
-                              <span className="t-secondary" title={r.orderIds.join(', ')}>
-                                {' · '}
-                                {t(r.orderIds.length > 1 ? 'Orders {ids}' : 'Order {ids}', { ids: r.orderIds.slice(0, 3).join(', ') })}
-                                {r.orderIds.length > 3 ? ' ' + t('(+{count})', { count: r.orderIds.length - 3 }) : ''}
-                              </span>
-                            </span>
+                            <span className="os-body-m" style={{ color: reached ? 'var(--text-brand)' : undefined }}>{r.sku}</span>
                             <span style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.productName}</span>
                             {r.cheapest && (
                               <span className="os-body-s t-secondary">
@@ -195,7 +189,7 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
             {strategyName ? `${strategyName} · ` : ''}{t('{orders} orders · {lines} order lines ({rate} %) · {purchase} purchase lines', { orders: sim.matchedOrders, lines: sim.matchedLines, rate: fulfillmentRate, purchase: results.length })}
           </p>
         </div>
-        <OsButton icon="play" onClick={onNext}>{t('Launch')}</OsButton>
+        <OsButton icon="play" onClick={onNext} disabled={launching}>{launching ? t('Launching…') : t('Launch')}</OsButton>
       </div>
     </div>
   );
