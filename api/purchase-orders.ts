@@ -1,10 +1,11 @@
 // Supplier purchase orders created by the Launch of a strategy.
 // GET  /api/purchase-orders  → { purchaseOrders: PurchaseOrder[] } (newest first)
 // POST /api/purchase-orders  → { orders: PurchaseOrder[] without id/date/statusUpdate }
+// DELETE /api/purchase-orders?before=… or ?all=1 → purge (see below)
 //   Saves the purchase orders and, when a status after launch is set in the settings, moves each OneStock
 //   order line (line item group) of these orders to that status: PATCH /line_item_groups/{id} { from, to }.
 import { getConfig, ready } from './_lib/db.js';
-import { body, handle, HttpError, json, tenantOf } from './_lib/http.js';
+import { body, handle, HttpError, json, requireAdmin, tenantOf } from './_lib/http.js';
 import { call } from './_lib/onestock.js';
 
 type OrderLine = { id: string; orderId: string; status: string; quantity: number };
@@ -85,4 +86,21 @@ export const POST = handle(async (req) => {
   await db`
     insert into purchase_orders ${db(saved.map((o) => ({ env: t.env, site_id: t.siteId, id: o.id!, data: db.json(o as never) })), 'env', 'site_id', 'id', 'data')}`;
   return json({ purchaseOrders: saved, target, updated: orderLines.length - failed.size, failed: failed.size });
+});
+
+// DELETE /api/purchase-orders?before=YYYY-MM-DD  → purge the orders created before that day (UTC)
+// DELETE /api/purchase-orders?all=1              → purge every order of the site
+// Settings key required (purge is in the settings tab). Order line statuses are not changed back.
+export const DELETE = handle(async (req) => {
+  requireAdmin(req);
+  const t = tenantOf(req);
+  const sp = new URL(req.url).searchParams;
+  const before = sp.get('before');
+  const all = sp.get('all') === '1';
+  if (!all && !(before && /^\d{4}-\d{2}-\d{2}$/.test(before))) throw new HttpError(400, 'Give before=YYYY-MM-DD or all=1');
+  const db = await ready();
+  const r = all
+    ? await db`delete from purchase_orders where env = ${t.env} and site_id = ${t.siteId}`
+    : await db`delete from purchase_orders where env = ${t.env} and site_id = ${t.siteId} and created_at < ${before + 'T00:00:00Z'}::timestamptz`;
+  return json({ ok: true, deleted: r.count });
 });

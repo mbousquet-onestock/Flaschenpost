@@ -40,6 +40,8 @@ export interface DataSource {
   listPurchaseOrders(): Promise<PurchaseOrder[]>;
   /** Saves the purchase orders of a launch and moves their order lines to the status after launch (settings). */
   launch(orders: NewPurchaseOrder[]): Promise<LaunchResult>;
+  /** Deletes the supplier orders created before a day (YYYY-MM-DD), or all of them; returns the number deleted. */
+  purgePurchaseOrders(before: string | null): Promise<number>;
 }
 
 export type LaunchResult = { purchaseOrders: PurchaseOrder[]; target: string; updated: number; failed: number };
@@ -180,6 +182,13 @@ export const staticSource: DataSource = {
   async listPurchaseOrders() {
     return store().purchaseOrders ?? [];
   },
+  async purgePurchaseOrders(before) {
+    const s = store();
+    const list = s.purchaseOrders ?? [];
+    const kept = before ? list.filter((o) => o.createdAt.slice(0, 10) >= before) : [];
+    save({ ...s, purchaseOrders: kept });
+    return list.length - kept.length;
+  },
   async launch(orders) {
     const s = store();
     const target = s.launchStatus ?? '';
@@ -273,6 +282,10 @@ function dynamicSource(ctx: HostContext): DataSource {
     },
     async listPurchaseOrders() {
       return (await api<{ purchaseOrders: PurchaseOrder[] }>(ctx, 'purchase-orders')).purchaseOrders;
+    },
+    async purgePurchaseOrders(before) {
+      const r = await api<{ deleted: number }>(ctx, 'purchase-orders', { method: 'DELETE', query: before ? { before } : { all: 1 } });
+      return r.deleted;
     },
     async launch(orders) {
       return api<LaunchResult>(ctx, 'purchase-orders', { method: 'POST', body: { orders } });

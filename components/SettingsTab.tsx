@@ -5,10 +5,10 @@
 import React, { useEffect, useState } from 'react';
 import type { Settings } from '../types';
 import type { HostContext } from '../services/context';
-import { DataMode, siteSettings, staticSource } from '../services/dataSource';
+import { DataMode, DataSource, siteSettings, staticSource } from '../services/dataSource';
 import { ApiError, getAdminKey, setAdminKey } from '../services/api';
 import { OsAlert, OsBadge, OsButton, OsField, OsIcon, OsTag } from './os';
-import { dateTime, t } from '../services/i18n';
+import { date, dateTime, t } from '../services/i18n';
 
 const fmt = (iso: string | null) => (iso ? dateTime(new Date(iso)) : '—');
 
@@ -23,7 +23,10 @@ export const SettingsTab: React.FC<{
   onModeChange: (mode: DataMode) => void;
   onContextChange: (ctx: { env: string; siteId: string }) => void;
   onSaved: () => void;
-}> = ({ context, mode, onModeChange, onContextChange, onSaved }) => {
+  /** Data source in use: the purge applies to its supplier orders. */
+  source: DataSource;
+}> = ({ context, mode, onModeChange, onContextChange, onSaved, source }) => {
+  const [purgeBefore, setPurgeBefore] = useState('');
   const fromHost = context?.source === 'url' || context?.source === 'host';
   const site = context ? siteSettings(context) : null;
 
@@ -81,13 +84,13 @@ export const SettingsTab: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context, selectedMode]);
 
-  const run = async (fn: () => Promise<unknown>, done: string) => {
+  const run = async <R,>(fn: () => Promise<R>, done: string | ((result: R) => string)) => {
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      await fn();
-      setNotice(done);
+      const result = await fn();
+      setNotice(typeof done === 'function' ? done(result) : done);
       setPassword('');
       await load();
       onSaved();
@@ -253,6 +256,34 @@ export const SettingsTab: React.FC<{
         )}
         <div className="os-row" style={{ justifyContent: 'flex-end' }}>
           <OsButton icon="save" disabled={busy || !statuses.length || (selectedMode === 'dynamic' && !context)} onClick={saveData}>{t('Save settings')}</OsButton>
+        </div>
+      </section>
+
+      <section className="os-card os-col" style={{ gap: 16 }} aria-label={t('Purge supplier orders')}>
+        <h3 className="os-title-s" style={{ margin: 0 }}>{t('Purge supplier orders')}</h3>
+        <p className="os-label-s t-secondary" style={{ margin: 0 }}>
+          {t('Deletes supplier orders of the {mode} source. The order line statuses in OneStock are not changed back.', {
+            mode: source.mode === 'dynamic' ? t('dynamic') : t('static'),
+          })}
+        </p>
+        <div className="os-row" style={{ alignItems: 'flex-end', gap: 12 }}>
+          <OsField label={t('Created before')} htmlFor="st-purge">
+            <input id="st-purge" type="date" className="os-input" style={{ width: 180 }} value={purgeBefore} onChange={(e) => setPurgeBefore(e.target.value)} />
+          </OsField>
+          <OsButton kind="secondary" color="red" icon="trash" disabled={busy || !purgeBefore}
+            onClick={() => {
+              if (!window.confirm(t('Delete the supplier orders created before {date}?', { date: date(new Date(purgeBefore + 'T00:00:00')) }))) return;
+              run(() => source.purgePurchaseOrders(purgeBefore), (count) => t('{count} supplier order(s) deleted.', { count }));
+            }}>
+            {t('Purge')}
+          </OsButton>
+          <OsButton kind="tertiary" color="red" icon="trash" disabled={busy}
+            onClick={() => {
+              if (!window.confirm(t('Delete ALL the supplier orders of this site? This cannot be undone.'))) return;
+              run(() => source.purgePurchaseOrders(null), (count) => t('{count} supplier order(s) deleted.', { count }));
+            }}>
+            {t('Delete all')}
+          </OsButton>
         </div>
       </section>
     </div>

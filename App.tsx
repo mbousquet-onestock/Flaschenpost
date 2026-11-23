@@ -317,7 +317,7 @@ const App: React.FC = () => {
         {tab === 'purchases' && <PurchaseOrdersTab source={source} notice={launchNotice} />}
         {tab === 'prices' && <PricingTab source={source} onDataChanged={reloadData} />}
         {tab === 'settings' && (
-          <SettingsTab context={context ?? null} mode={source.mode} onModeChange={setMode} onContextChange={changeContext} onSaved={reloadData} />
+          <SettingsTab source={source} context={context ?? null} mode={source.mode} onModeChange={setMode} onContextChange={changeContext} onSaved={reloadData} />
         )}
       </div>
     </ExtensionLayout>

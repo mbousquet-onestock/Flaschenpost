@@ -307,6 +307,17 @@ export const fr: Record<string, string> = {
   'Value of the "endpoint_type" classification that identifies supplier stock points.':
     'Valeur de la classification « endpoint_type » qui identifie les points de stock fournisseurs.',
   'Save settings': 'Enregistrer le paramétrage',
+  'Purge supplier orders': 'Purge des commandes fournisseurs',
+  'Deletes supplier orders of the {mode} source. The order line statuses in OneStock are not changed back.':
+    'Supprime les commandes fournisseurs de la source {mode}. Les statuts des lignes de commande dans OneStock ne sont pas rétablis.',
+  dynamic: 'dynamique',
+  static: 'statique',
+  'Created before': 'Créées avant le',
+  Purge: 'Purger',
+  'Delete all': 'Tout supprimer',
+  'Delete the supplier orders created before {date}?': 'Supprimer les commandes fournisseurs créées avant le {date} ?',
+  'Delete ALL the supplier orders of this site? This cannot be undone.': 'Supprimer TOUTES les commandes fournisseurs de ce site ? Cette action est définitive.',
+  '{count} supplier order(s) deleted.': '{count} commande(s) fournisseur supprimée(s).',
   'Order line status after launch': 'Statut des lignes de commande après lancement',
   'When a strategy is launched, its order lines move to this status (e.g. supplier_ordered). Empty: the statuses do not change.':
     'Au lancement d’une stratégie, ses lignes de commande passent à ce statut (ex. supplier_ordered). Vide : les statuts ne changent pas.',
