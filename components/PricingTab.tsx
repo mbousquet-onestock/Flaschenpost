@@ -267,7 +267,7 @@ export const PricingTab: React.FC<{ source: DataSource; onDataChanged: () => voi
               <select id="pr-supplier" className="os-input" style={{ minWidth: 260 }} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} ({s.id}) · {t('{count} price(s)', { count: countBySupplier.get(s.id) || 0 })}{s.source === 'local' ? ` · ${t('entered in the app')}` : ''}
+                    {s.name}
                   </option>
                 ))}
               </select>

@@ -143,7 +143,6 @@ export const fr: Record<string, string> = {
   'Replace the existing prices of the suppliers in the file': 'Remplacer les tarifs existants des fournisseurs du fichier',
   '{prices} price tier(s) and {terms} franco value(s) imported.': '{prices} palier(s) de prix et {terms} franco(s) importés.',
   'Unable to read {file}: {error}': 'Impossible de lire {file} : {error}',
-  '{count} price(s)': '{count} tarif(s)',
   'Franco (€)': 'Franco (€)',
   'Item ID or name': 'ID ou nom d’article',
   Item: 'Article',
@@ -192,7 +191,6 @@ export const fr: Record<string, string> = {
   'Delete the supplier "{name}" with its prices and franco?': 'Supprimer le fournisseur « {name} » avec ses tarifs et son franco ?',
   'Supplier {name} deleted.': 'Fournisseur {name} supprimé.',
   'Delete supplier': 'Supprimer le fournisseur',
-  'entered in the app': 'saisi dans l’application',
   'OneStock supplier stock points could not be read: {error}': 'Les points de stock fournisseurs OneStock n’ont pas pu être lus : {error}',
   'No supplier yet. Add one, or import an Excel file: the suppliers of the file that do not exist are created.':
     'Aucun fournisseur pour l’instant. Ajoutez-en un, ou importez un fichier Excel : les fournisseurs du fichier qui n’existent pas sont créés.',
