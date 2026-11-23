@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { InfoCondition, InfoSource, OrchestrationConfig, OrderDateFilter, OrderStatus, StockPointType, StockPointRank, ConsolidationMode, SupplierRef } from '../types';
-import { OsButton, OsCheckbox, OsFloating, OsIcon, OsSwitch, OsTag } from './os';
+import { InfoCondition, InfoSource, OrchestrationConfig, OrderConditions, pickOrderConditions, OrderDateFilter, OrderStatus, StockPointType, StockPointRank, ConsolidationMode, SupplierRef } from '../types';
+import { OsBadge, OsButton, OsCheckbox, OsFloating, OsIcon, OsSwitch, OsTag } from './os';
 import { date as fmtDate, t } from '../services/i18n';
 import { InfoConditionEditor, infoConditionLabel, newInfoCondition } from './InfoConditionEditor';
 
@@ -15,6 +15,10 @@ interface OrchestrationScenariosProps {
   typeOptions: string[];
   /** Information keys and values found in the loaded orders, per source. */
   infoCatalog: Record<InfoSource, Map<string, Set<string>>>;
+  /** Renders only the order conditions of an OR group (config = that group's conditions over the main config). */
+  orGroup?: boolean;
+  /** Prefix of the element IDs, unique per group. */
+  idPrefix?: string;
 }
 
 type Condition = 'status' | 'date' | 'channel' | 'otype' | 'customer' | 'item' | 'type' | 'rank' | 'suppliers';
@@ -70,7 +74,7 @@ export function orderDateLabel(f: OrderDateFilter): string {
   return t('Any date');
 }
 
-const DateEditor: React.FC<{ value: OrderDateFilter; onChange: (v: OrderDateFilter) => void }> = ({ value, onChange }) => {
+const DateEditor: React.FC<{ prefix?: string; value: OrderDateFilter; onChange: (v: OrderDateFilter) => void }> = ({ prefix = '', value, onChange }) => {
   const num = (s: string) => Math.max(0, Math.min(365, Math.round(Number(s) || 0)));
   return (
     <div className="os-col" style={{ gap: 8, padding: 8 }}>
@@ -89,21 +93,21 @@ const DateEditor: React.FC<{ value: OrderDateFilter; onChange: (v: OrderDateFilt
             ))}
           </div>
           <div className="os-row" style={{ flexWrap: 'nowrap' }}>
-            <label className="os-label-s" htmlFor="od-from">{t('From D-')}</label>
-            <input id="od-from" className="os-input num" style={{ width: 70 }} type="number" min={0} max={365} value={value.fromDays}
+            <label className="os-label-s" htmlFor={`${prefix}od-from`}>{t('From D-')}</label>
+            <input id={`${prefix}od-from`} className="os-input num" style={{ width: 70 }} type="number" min={0} max={365} value={value.fromDays}
               onChange={(e) => onChange({ ...value, fromDays: num(e.target.value) })} />
-            <label className="os-label-s" htmlFor="od-to">{t('to D-')}</label>
-            <input id="od-to" className="os-input num" style={{ width: 70 }} type="number" min={0} max={365} value={value.toDays}
+            <label className="os-label-s" htmlFor={`${prefix}od-to`}>{t('to D-')}</label>
+            <input id={`${prefix}od-to`} className="os-input num" style={{ width: 70 }} type="number" min={0} max={365} value={value.toDays}
               onChange={(e) => onChange({ ...value, toDays: num(e.target.value) })} />
           </div>
           <span className="os-hint">{t('D is the day the strategy runs. D-0 is today.')}</span>
         </>
       ) : (
         <div className="os-row" style={{ flexWrap: 'nowrap' }}>
-          <label className="os-label-s" htmlFor="od-abs-from">{t('From')}</label>
-          <input id="od-abs-from" className="os-input" type="date" style={{ width: 160 }} value={value.from ?? ''} onChange={(e) => onChange({ ...value, from: e.target.value || undefined })} />
-          <label className="os-label-s" htmlFor="od-abs-to">{t('To')}</label>
-          <input id="od-abs-to" className="os-input" type="date" style={{ width: 160 }} value={value.to ?? ''} onChange={(e) => onChange({ ...value, to: e.target.value || undefined })} />
+          <label className="os-label-s" htmlFor={`${prefix}od-abs-from`}>{t('From')}</label>
+          <input id={`${prefix}od-abs-from`} className="os-input" type="date" style={{ width: 160 }} value={value.from ?? ''} onChange={(e) => onChange({ ...value, from: e.target.value || undefined })} />
+          <label className="os-label-s" htmlFor={`${prefix}od-abs-to`}>{t('To')}</label>
+          <input id={`${prefix}od-abs-to`} className="os-input" type="date" style={{ width: 160 }} value={value.to ?? ''} onChange={(e) => onChange({ ...value, to: e.target.value || undefined })} />
         </div>
       )}
     </div>
@@ -117,7 +121,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   </section>
 );
 
-export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ config, onChange, statusOptions, suppliers, channelOptions, typeOptions, infoCatalog }) => {
+export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ config, onChange, statusOptions, suppliers, channelOptions, typeOptions, infoCatalog, orGroup, idPrefix = '' }) => {
   const [activeMenu, setActiveMenu] = useState<Menu>(null);
   const close = () => setActiveMenu(null);
   const toggle = (m: Exclude<Menu, null>) => setActiveMenu((cur) => (cur === m ? null : m));
@@ -243,79 +247,116 @@ export const OrchestrationScenarios: React.FC<OrchestrationScenariosProps> = ({ 
     </button>
   );
 
+  // ---------- order conditions of this group (all to be met) ----------
+  const rows: { key: string; node: React.ReactNode }[] = [];
+  if (has.status)
+    rows.push({ key: 'status', node: tag('status', 'Order information', config.statuses.join(', '), (
+      <>
+        <div className="os-float-head"><span className="os-body-l t-secondary">{t('Order line status')}</span></div>
+        {statusOptions.length === 0 && <div className="os-opt t-secondary">{t('No status configured')}</div>}
+        {statusOptions.map((s) => (
+          <div key={s}><OsCheckbox checked={config.statuses.includes(s)} onChange={() => toggleStatus(s)} label={s} /></div>
+        ))}
+      </>
+    ), 240) });
+  if (config.orderDate)
+    rows.push({ key: 'date', node: tag('date', 'Order information', orderDateLabel(config.orderDate), (
+      <DateEditor prefix={idPrefix} value={config.orderDate} onChange={(orderDate) => onChange({ ...config, orderDate })} />
+    ), 440) });
+  if (config.salesChannels)
+    rows.push({ key: 'channel', node: tag('channel', 'Order information',
+      config.salesChannels.map((id) => channelOptions.find((o) => o.id === id)?.name ?? id).join(', ') || t('None'),
+      checkList(t('Sales channel'), channelOptions, config.salesChannels, (salesChannels) => onChange({ ...config, salesChannels }), t('No sales channel found')), 260) });
+  if (config.orderTypes)
+    rows.push({ key: 'otype', node: tag('otype', 'Order information', config.orderTypes.join(', ') || t('None'),
+      checkList(t('Order type'), typeOptions.map((v) => ({ id: v, name: v })), config.orderTypes, (orderTypes) => onChange({ ...config, orderTypes }), t('No order type in the loaded orders')), 260) });
+  if (config.customerQuery !== undefined)
+    rows.push({ key: 'customer', node: tag('customer', 'Order information', config.customerQuery.trim() || t('(to fill in)'), (
+      <TextEditor id={`${idPrefix}cond-customer`} value={config.customerQuery} placeholder={t('Name or email')}
+        onChange={(customerQuery) => onChange({ ...config, customerQuery })} onDone={close} />
+    ), 360) });
+  if (config.itemQuery !== undefined)
+    rows.push({ key: 'item', node: tag('item', 'Order information', config.itemQuery.trim() || t('(to fill in)'), (
+      <TextEditor id={`${idPrefix}cond-item`} value={config.itemQuery} placeholder={t('SKU or name')}
+        onChange={(itemQuery) => onChange({ ...config, itemQuery })} onDone={close} />
+    ), 360) });
+  (config.infoConditions ?? []).forEach((c) => {
+    const label = infoConditionLabel(c);
+    const menu = `info:${c.id}` as const;
+    rows.push({ key: c.id, node: (
+      <div style={{ position: 'relative' }}>
+        <OsTag draggable onClick={() => toggle(menu)} onClose={() => removeInfo(c.id)}>
+          <span className="muted">{label.prefix} </span>
+          {label.value}
+        </OsTag>
+        {activeMenu === menu && (
+          <OsFloating onClose={close}>
+            <InfoConditionEditor value={c} onChange={setInfo} catalog={infoCatalog} />
+          </OsFloating>
+        )}
+      </div>
+    ) });
+  });
+
+  const orderBlock = (
+    <>
+      {rows.map((r, i) => (
+        <div className="os-row" key={r.key}>
+          {i > 0 && <OsBadge text={t('AND')} color="grey" secondary />}
+          {r.node}
+        </div>
+      ))}
+      <div className="os-row">{addButton('add-order', ORDER_CONDITIONS, true)}</div>
+      {!rows.length && (
+        <p className="os-label-s t-secondary" style={{ margin: 0 }}>
+          {orGroup ? t('Empty group: it takes every order line.') : t('No condition: order lines of every configured status are taken.')}
+        </p>
+      )}
+    </>
+  );
+
+  if (orGroup) return orderBlock;
+
+  const groups = config.orGroups ?? [];
+  const setGroup = (i: number, g: OrderConditions) => onChange({ ...config, orGroups: groups.map((x, j) => (j === i ? g : x)) });
+  const removeGroup = (i: number) => {
+    const rest = groups.filter((_, j) => j !== i);
+    onChange({ ...config, orGroups: rest.length ? rest : undefined });
+  };
+
   return (
     <div className="os-col">
       <Section title={t('Order information')}>
-        {has.status && (
-          <div className="os-row">
-            {tag('status', 'Order information', config.statuses.join(', '), (
-              <>
-                <div className="os-float-head"><span className="os-body-l t-secondary">{t('Order line status')}</span></div>
-                {statusOptions.length === 0 && <div className="os-opt t-secondary">{t('No status configured')}</div>}
-                {statusOptions.map((s) => (
-                  <div key={s}><OsCheckbox checked={config.statuses.includes(s)} onChange={() => toggleStatus(s)} label={s} /></div>
-                ))}
-              </>
-            ), 240)}
-          </div>
-        )}
-        {config.orderDate && (
-          <div className="os-row">
-            {tag('date', 'Order information', orderDateLabel(config.orderDate), (
-              <DateEditor value={config.orderDate} onChange={(orderDate) => onChange({ ...config, orderDate })} />
-            ), 440)}
-          </div>
-        )}
-        {config.salesChannels && (
-          <div className="os-row">
-            {tag('channel', 'Order information',
-              config.salesChannels.map((id) => channelOptions.find((o) => o.id === id)?.name ?? id).join(', ') || t('None'),
-              checkList(t('Sales channel'), channelOptions, config.salesChannels, (salesChannels) => onChange({ ...config, salesChannels }), t('No sales channel found')), 260)}
-          </div>
-        )}
-        {config.orderTypes && (
-          <div className="os-row">
-            {tag('otype', 'Order information', config.orderTypes.join(', ') || t('None'),
-              checkList(t('Order type'), typeOptions.map((v) => ({ id: v, name: v })), config.orderTypes, (orderTypes) => onChange({ ...config, orderTypes }), t('No order type in the loaded orders')), 260)}
-          </div>
-        )}
-        {config.customerQuery !== undefined && (
-          <div className="os-row">
-            {tag('customer', 'Order information', config.customerQuery.trim() || t('(to fill in)'), (
-              <TextEditor id="cond-customer" value={config.customerQuery} placeholder={t('Name or email')}
-                onChange={(customerQuery) => onChange({ ...config, customerQuery })} onDone={close} />
-            ), 360)}
-          </div>
-        )}
-        {config.itemQuery !== undefined && (
-          <div className="os-row">
-            {tag('item', 'Order information', config.itemQuery.trim() || t('(to fill in)'), (
-              <TextEditor id="cond-item" value={config.itemQuery} placeholder={t('SKU or name')}
-                onChange={(itemQuery) => onChange({ ...config, itemQuery })} onDone={close} />
-            ), 360)}
-          </div>
-        )}
-        {(config.infoConditions ?? []).map((c) => {
-          const label = infoConditionLabel(c);
-          const menu = `info:${c.id}` as const;
-          return (
-            <div className="os-row" key={c.id}>
-              <div style={{ position: 'relative' }}>
-                <OsTag draggable onClick={() => toggle(menu)} onClose={() => removeInfo(c.id)}>
-                  <span className="muted">{label.prefix} </span>
-                  {label.value}
-                </OsTag>
-                {activeMenu === menu && (
-                  <OsFloating onClose={close}>
-                    <InfoConditionEditor value={c} onChange={setInfo} catalog={infoCatalog} />
-                  </OsFloating>
-                )}
-              </div>
+        {groups.length > 0 && <span className="os-body-l t-secondary">{t('Group {n}', { n: 1 })}</span>}
+        {orderBlock}
+        {groups.map((g, i) => (
+          <React.Fragment key={i}>
+            <div className="os-row" style={{ gap: 12 }}>
+              <OsBadge text={t('OR')} color="primary" />
+              <span className="os-body-l t-secondary">{t('Group {n}', { n: i + 2 })}</span>
+              <OsButton kind="tertiary" color="red" icon="trash" onClick={() => removeGroup(i)}>{t('Delete group')}</OsButton>
             </div>
-          );
-        })}
-        <div className="os-row">{addButton('add-order', ORDER_CONDITIONS, true)}</div>
-        {!has.status && <p className="os-label-s t-secondary" style={{ margin: 0 }}>{t('No condition: order lines of every configured status are taken.')}</p>}
+            <div className="os-col" style={{ paddingLeft: 16, borderLeft: '2px solid var(--border-brand)', gap: 12 }}>
+              <OrchestrationScenarios
+                orGroup
+                idPrefix={`g${i + 2}-`}
+                config={{ ...config, ...pickOrderConditions({ ...g, statuses: g.statuses ?? [] }) }}
+                onChange={(c) => setGroup(i, pickOrderConditions(c))}
+                statusOptions={statusOptions}
+                suppliers={suppliers}
+                channelOptions={channelOptions}
+                typeOptions={typeOptions}
+                infoCatalog={infoCatalog}
+              />
+            </div>
+          </React.Fragment>
+        ))}
+        <div className="os-row" style={{ borderTop: '1px solid var(--border-primary)', paddingTop: 12 }}>
+          <OsButton kind="tertiary" color="brand" icon="add" onClick={() => onChange({ ...config, orGroups: [...groups, { statuses: [] }] })}>
+            {t('Add an OR group')}
+          </OsButton>
+          <span className="os-hint">{t('An order line is taken when it meets all the conditions of at least one group.')}</span>
+        </div>
       </Section>
 
       <Section title={t('Stock point')}>

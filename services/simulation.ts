@@ -4,7 +4,7 @@
 //    (dearer unit price, but franco reached or lower shipping fees) while the total purchase cost
 //    (goods + shipping fees) decreases. When a supplier's franco is not reached,
 // its shipping fee is added: a fixed amount, an amount per kg (item weights) or an amount per unit.
-import type { Dataset, InfoCondition, InfoSource, InfoValue, NewPurchaseOrder, OrchestrationConfig, OrderDateFilter, OrderLine, PriceTier, PurchaseOrderSource, ShippingMode } from '../types';
+import type { Dataset, InfoCondition, InfoSource, InfoValue, NewPurchaseOrder, OrchestrationConfig, OrderConditions, OrderDateFilter, OrderLine, PriceTier, PurchaseOrderSource, ShippingMode } from '../types';
 
 /** Shipping fee of a supplier whose franco is not reached. */
 export interface SupplierShipping {
@@ -82,24 +82,34 @@ export function orderDateRange(f: OrderDateFilter, now = new Date()): [number, n
   return [start, end];
 }
 
-export function simulate(data: Dataset, config: OrchestrationConfig): SimulationResult {
-  const range = config.orderDate ? orderDateRange(config.orderDate) : undefined;
+/** Test of the order conditions of one group: all its conditions must be met. */
+function groupMatcher(g: OrderConditions, itemNames: Map<string, string>): (l: OrderLine) => boolean {
+  const range = g.orderDate ? orderDateRange(g.orderDate) : undefined;
   const terms = (q?: string) => (q ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-  const customerTerms = terms(config.customerQuery);
-  const itemTerms = terms(config.itemQuery);
-  const itemNames = new Map(data.items.map((i) => [i.id, i.name.toLowerCase()]));
-  const lines = data.lines.filter((l) => {
-    if (config.salesChannels && !config.salesChannels.includes(l.channel ?? '')) return false;
-    if (config.orderTypes && !(l.orderTypes ?? []).some((x) => config.orderTypes!.includes(x))) return false;
+  const customerTerms = terms(g.customerQuery);
+  const itemTerms = terms(g.itemQuery);
+  return (l) => {
+    if (g.salesChannels && !g.salesChannels.includes(l.channel ?? '')) return false;
+    if (g.orderTypes && !(l.orderTypes ?? []).some((x) => g.orderTypes!.includes(x))) return false;
     if (customerTerms.length && !customerTerms.some((q) => (l.customer ?? '').toLowerCase().includes(q))) return false;
     if (itemTerms.length && !itemTerms.some((q) => l.sku.toLowerCase().includes(q) || (itemNames.get(l.sku) ?? '').includes(q))) return false;
-    if (config.infoConditions?.some((c) => c.field.trim() && !infoMatches(c, l.info?.[c.source]?.[c.field.trim()]))) return false;
-    if (config.statuses.length && !config.statuses.includes(l.status)) return false;
+    if (g.infoConditions?.some((c) => c.field.trim() && !infoMatches(c, l.info?.[c.source]?.[c.field.trim()]))) return false;
+    if (g.statuses.length && !g.statuses.includes(l.status)) return false;
     if (range) {
       // Lines without an order date are left out when a date condition is set.
       const ms = orderTime(l.date);
       if (ms === undefined || ms < range[0] || ms >= range[1]) return false;
     }
+    return true;
+  };
+}
+
+export function simulate(data: Dataset, config: OrchestrationConfig): SimulationResult {
+  const itemNames = new Map(data.items.map((i) => [i.id, i.name.toLowerCase()]));
+  // Group 1 (the order conditions of the configuration) OR each additional group.
+  const groups = [config, ...(config.orGroups ?? [])].map((g) => groupMatcher(g, itemNames));
+  const lines = data.lines.filter((l) => {
+    if (!groups.some((matches) => matches(l))) return false;
     if (!l.priority || !config.stockPointRank) return true;
     if (config.stockPointRank === 'P1') return l.priority === 'P1';
     if (config.stockPointRank === 'P2') return l.priority !== 'P3';

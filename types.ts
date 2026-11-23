@@ -46,6 +46,25 @@ export interface OrchestrationConfig {
   itemQuery?: string;
   /** Conditions on information fields, all to be met. */
   infoConditions?: InfoCondition[];
+  /**
+   * Other groups of order conditions, combined with OR: an order line is taken when it meets the order conditions
+   * above (group 1) or all the conditions of one of these groups. Stock point conditions apply to every group.
+   */
+  orGroups?: OrderConditions[];
+}
+
+/** Order conditions of one group (all to be met). */
+export type OrderConditions = Pick<
+  OrchestrationConfig,
+  'statuses' | 'orderDate' | 'salesChannels' | 'orderTypes' | 'customerQuery' | 'itemQuery' | 'infoConditions'
+>;
+
+/** The order conditions of a configuration (group 1). */
+export function pickOrderConditions(c: OrderConditions): OrderConditions {
+  return {
+    statuses: c.statuses, orderDate: c.orderDate, salesChannels: c.salesChannels, orderTypes: c.orderTypes,
+    customerQuery: c.customerQuery, itemQuery: c.itemQuery, infoConditions: c.infoConditions,
+  };
 }
 
 /**
