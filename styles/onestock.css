@@ -373,3 +373,10 @@ select.os-input { appearance: none; -webkit-appearance: none; padding-right: 36p
 .res-note { flex-basis: 100%; }
 .res-item { display: flex; flex-direction: column; min-width: 0; max-width: 520px; }
 .res-item > .os-body-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Drag and drop rows ---------- */
+.drag-handle { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-m); color: var(--icon-secondary); cursor: grab; }
+.drag-handle:hover { background: var(--surface-hover-transparent); color: var(--icon-primary); }
+.drag-handle:active { cursor: grabbing; }
+.os-table tr.dragging > td { opacity: .4; }
+.os-table tr.drop-target > td { box-shadow: inset 0 2px 0 var(--border-brand); }

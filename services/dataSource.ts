@@ -36,6 +36,8 @@ export interface DataSource {
   listStrategies(): Promise<Scenario[]>;
   saveStrategy(s: Scenario): Promise<void>;
   deleteStrategy(id: string): Promise<void>;
+  /** Saves the display order of the strategies. */
+  reorderStrategies(ids: string[]): Promise<void>;
   /** Supplier purchase orders created by launches, newest first. */
   listPurchaseOrders(): Promise<PurchaseOrder[]>;
   /** Saves the purchase orders of a launch and moves their order lines to the status after launch (settings). */
@@ -184,6 +186,11 @@ export const staticSource: DataSource = {
   async deleteStrategy(id) {
     save({ ...store(), strategies: (store().strategies ?? MOCK_SCENARIOS).filter((x) => x.id !== id) });
   },
+  async reorderStrategies(ids) {
+    const list = store().strategies ?? MOCK_SCENARIOS;
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    save({ ...store(), strategies: [...list].sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9)) });
+  },
   async listPurchaseOrders() {
     return store().purchaseOrders ?? [];
   },
@@ -300,6 +307,9 @@ function dynamicSource(ctx: HostContext): DataSource {
     },
     async deleteStrategy(id) {
       await api(ctx, 'strategies', { method: 'DELETE', query: { id } });
+    },
+    async reorderStrategies(ids) {
+      await api(ctx, 'strategies', { method: 'PATCH', body: { order: ids } });
     },
     async listPurchaseOrders() {
       return (await api<{ purchaseOrders: PurchaseOrder[] }>(ctx, 'purchase-orders')).purchaseOrders;

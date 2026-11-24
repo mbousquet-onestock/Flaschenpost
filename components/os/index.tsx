@@ -13,7 +13,7 @@ export type IconName =
   | 'ext-link' | 'flash' | 'help-outline' | 'info-outline' | 'insights' | 'item-outline' | 'lan' | 'menu'
   | 'people-outline' | 'person-outline' | 'play' | 'radio-button-checked' | 'radio-button-half_checked'
   | 'radio-button-unchecked' | 'search' | 'shopping-cart-outline' | 'sort' | 'store-outline' | 'time' | 'truck'
-  | 'truck-outline' | 'warning-outline' | 'loader' | 'trash' | 'save' | 'refresh' | 'file';
+  | 'truck-outline' | 'warning-outline' | 'loader' | 'trash' | 'save' | 'refresh' | 'file' | 'copy';
 
 export const OsIcon: React.FC<{ icon: IconName; size?: 'xs' | 's' | 'm' | 'l'; className?: string; spin?: boolean }> = ({
   icon, size = 'm', className, spin,

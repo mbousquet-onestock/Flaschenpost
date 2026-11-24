@@ -174,6 +174,42 @@ const App: React.FC = () => {
     if (s) persist({ ...s, schedule, nextExecution: nextRun(schedule), status: s.status === 'Draft' ? 'Scheduled' : s.status });
   };
 
+  /** Copy of a strategy (scenario only, never launched, no schedule), placed right after it. */
+  const handleDuplicate = async (s: Scenario) => {
+    const copy: Scenario = {
+      ...s,
+      id: `ST-${Date.now().toString(36)}`,
+      name: t('{name} (copy)', { name: s.name }),
+      status: 'Draft',
+      lastExecuted: undefined,
+      nextExecution: undefined,
+      schedule: undefined,
+      config: s.config ? JSON.parse(JSON.stringify(s.config)) : undefined,
+    };
+    try {
+      await source!.saveStrategy(copy);
+      const ids = scenarios.map((x) => x.id);
+      ids.splice(ids.indexOf(s.id) + 1, 0, copy.id);
+      await source!.reorderStrategies(ids);
+      setStrategyError(null);
+    } catch (e) {
+      setStrategyError(t('The strategy could not be saved: {error}', { error: (e as Error).message }));
+    }
+    await reloadStrategies();
+  };
+
+  /** Shows the new order at once, then saves it. */
+  const handleReorder = async (ids: string[]) => {
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    setScenarios((prev) => [...prev].sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9)));
+    try {
+      await source!.reorderStrategies(ids);
+    } catch (e) {
+      setStrategyError(t('The order of the strategies could not be saved: {error}', { error: (e as Error).message }));
+      await reloadStrategies();
+    }
+  };
+
   const handleDelete = async (s: Scenario) => {
     if (!window.confirm(t('Delete the strategy "{name}"?', { name: s.name }))) return;
     try {
@@ -319,6 +355,8 @@ const App: React.FC = () => {
               loading={strategiesLoading}
               onSaveSchedule={handleSaveSchedule}
               onDelete={handleDelete}
+              onReorder={handleReorder}
+              onDuplicate={handleDuplicate}
               onSelect={(s) => openStrategy(s, Step.ResultsVisualization)}
               onEdit={(s) => openStrategy(s, Step.OrchestrationScenarios)}
               onCreateNew={handleCreateNew}

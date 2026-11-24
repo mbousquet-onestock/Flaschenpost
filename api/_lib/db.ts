@@ -74,6 +74,7 @@ export async function ready(): Promise<postgres.Sql> {
         updated_at timestamptz not null default now(),
         primary key (env, site_id, id)
       )`;
+    await db`alter table strategies add column if not exists position integer`;
     await db`
       create table if not exists supplier_terms (
         env text not null,

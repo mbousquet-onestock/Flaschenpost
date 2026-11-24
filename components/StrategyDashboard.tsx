@@ -11,8 +11,19 @@ interface StrategyDashboardProps {
   onUpdateName: (id: string, newName: string) => void;
   onSaveSchedule: (id: string, schedule: { days: number[]; times: string[] }) => void;
   onDelete: (strategy: Scenario) => void;
+  /** Creates a copy of a strategy, placed right after it. */
+  onDuplicate: (strategy: Scenario) => void;
+  /** New display order (strategy IDs), after a drag and drop. */
+  onReorder: (ids: string[]) => void;
   loading?: boolean;
 }
+
+/** Meaning of the statuses, shown on hover. */
+const STATUS_HELP: Record<string, string> = {
+  Draft: 'Never launched and no schedule saved.',
+  Scheduled: 'Execution days and times are saved; never launched yet.',
+  Active: 'Launched at least once with the Launch button (supplier orders created).',
+};
 
 /** Day names in the interface locale (Monday first). 2024-01-01 is a Monday. */
 const DAYS = [1, 2, 3, 4, 5, 6, 0].map((value, i) => {
@@ -36,8 +47,26 @@ export const formatDate = (iso?: string) => {
   return m ? `${m[3]}/${m[2]}/${m[1]}${m[4]}` : iso;
 };
 
-export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios, onSelect, onEdit, onCreateNew, onUpdateName, onSaveSchedule, onDelete, loading }) => {
+export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios, onSelect, onEdit, onCreateNew, onUpdateName, onSaveSchedule, onDelete, onDuplicate, onReorder, loading }) => {
   const [showScheduleId, setShowScheduleId] = useState<string | null>(null);
+  // Drag and drop: a row can be dragged once its handle is pressed.
+  const [armed, setArmed] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  /** Moves a strategy to the place of another one and saves the new order. */
+  const move = (id: string, targetId: string) => {
+    setDragId(null);
+    setOverId(null);
+    setArmed(null);
+    if (id === targetId) return;
+    const ids = scenarios.map((s) => s.id);
+    const from = ids.indexOf(id);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, id);
+    onReorder(ids);
+  };
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]);
@@ -89,6 +118,7 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
         <table className="os-table">
           <thead>
             <tr>
+              <th style={{ width: 40 }} aria-label={t('Order')} />
               <th>{t('Strategy name')}</th>
               <th className="r">{t('Orders')}</th>
               <th className="r">{t('Items')}</th>
@@ -103,7 +133,33 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
               const scheduleOpen = showScheduleId === strategy.id;
               return (
                 <React.Fragment key={strategy.id}>
-                  <tr>
+                  <tr
+                    draggable={armed === strategy.id}
+                    onDragStart={(e) => { setDragId(strategy.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', strategy.id); }}
+                    onDragOver={(e) => { if (dragId) { e.preventDefault(); setOverId(strategy.id); } }}
+                    onDrop={(e) => { e.preventDefault(); if (dragId) move(dragId, strategy.id); }}
+                    onDragEnd={() => { setDragId(null); setOverId(null); setArmed(null); }}
+                    className={[dragId === strategy.id ? 'dragging' : '', overId === strategy.id && dragId && dragId !== strategy.id ? 'drop-target' : ''].join(' ')}
+                  >
+                    <td style={{ paddingRight: 0 }}>
+                      <button
+                        type="button"
+                        className="drag-handle"
+                        aria-label={t('Move {name} (Alt + up / down arrows)', { name: strategy.name })}
+                        title={t('Drag to reorder')}
+                        onMouseDown={() => setArmed(strategy.id)}
+                        onMouseUp={() => setArmed(null)}
+                        onKeyDown={(e) => {
+                          if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+                          e.preventDefault();
+                          const i = scenarios.findIndex((s) => s.id === strategy.id);
+                          const target = scenarios[e.key === 'ArrowUp' ? i - 1 : i + 1];
+                          if (target) move(strategy.id, target.id);
+                        }}
+                      >
+                        <OsIcon icon="drag" size="s" />
+                      </button>
+                    </td>
                     <td style={{ minWidth: 260 }}>
                       {editingNameId === strategy.id ? (
                         <div className="os-row" style={{ flexWrap: 'nowrap' }}>
@@ -142,7 +198,7 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                     <td className="r t-num">{strategy.metrics.orderCount}</td>
                     <td className="r t-num">{strategy.metrics.itemCount}</td>
                     <td>
-                      {strategy.status ? <OsBadge text={t(strategy.status)} color={STATUS_COLOR[strategy.status] ?? 'grey'} /> : <span className="t-disabled">—</span>}
+                      {strategy.status ? <span title={STATUS_HELP[strategy.status] ? t(STATUS_HELP[strategy.status]) : undefined}><OsBadge text={t(strategy.status)} color={STATUS_COLOR[strategy.status] ?? 'grey'} /></span> : <span className="t-disabled">—</span>}
                     </td>
                     <td className="t-num" style={{ whiteSpace: 'nowrap' }}>{formatDate(strategy.lastExecuted) ?? <span className="t-secondary">{t('Never')}</span>}</td>
                     <td className="t-num" style={{ whiteSpace: 'nowrap' }}>
@@ -161,6 +217,7 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
                           className={scheduleOpen ? 'brand' : undefined}
                           onClick={() => toggleSchedule(strategy)}
                         />
+                        <OsButton kind="tertiary" round icon="copy" title={t('Duplicate')} aria-label={t('Duplicate')} onClick={() => onDuplicate(strategy)} />
                         <OsButton kind="tertiary" color="red" round icon="trash" title={t('Delete')} aria-label={t('Delete')} onClick={() => onDelete(strategy)} />
                         <OsButton kind="secondary" icon="play" onClick={() => onSelect(strategy)}>{t('Simulate')}</OsButton>
                       </div>
@@ -169,7 +226,7 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
 
                   {scheduleOpen && (
                     <tr className="detail">
-                      <td colSpan={7}>
+                      <td colSpan={8}>
                         <div className="os-card os-col" style={{ gap: 16 }}>
                           <div className="os-row" style={{ gap: 12 }}>
                             <OsIcon icon="time" className="t-secondary" />
@@ -246,7 +303,7 @@ export const StrategyDashboard: React.FC<StrategyDashboardProps> = ({ scenarios,
               );
             })}
             {scenarios.length === 0 && (
-              <tr><td colSpan={7} className="os-empty">{loading ? t('Loading strategies') : t('No strategy yet for this site. Create one with New strategy.')}</td></tr>
+              <tr><td colSpan={8} className="os-empty">{loading ? t('Loading strategies') : t('No strategy yet for this site. Create one with New strategy.')}</td></tr>
             )}
           </tbody>
         </table>
