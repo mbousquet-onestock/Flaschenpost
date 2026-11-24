@@ -34,6 +34,7 @@ export async function ready(): Promise<postgres.Sql> {
       )`;
     await db`alter table tenant_config add column if not exists data_mode text`;
     await db`alter table tenant_config add column if not exists launch_status text`;
+    await db`alter table tenant_config add column if not exists show_stock_test boolean`;
     await db`
       create table if not exists purchase_orders (
         env text not null,
@@ -112,13 +113,14 @@ export type ConfigRow = {
   supplier_type: string;
   data_mode: 'static' | 'dynamic' | null;
   launch_status: string | null;
+  show_stock_test: boolean | null;
   updated_at: Date;
 };
 
 export async function getConfig(t: Tenant): Promise<ConfigRow | undefined> {
   const db = await ready();
   const rows = await db<ConfigRow[]>`
-    select api_user, api_password_enc, token, token_at, line_statuses, supplier_type, data_mode, launch_status, updated_at
+    select api_user, api_password_enc, token, token_at, line_statuses, supplier_type, data_mode, launch_status, show_stock_test, updated_at
     from tenant_config where env = ${t.env} and site_id = ${t.siteId}`;
   return rows[0];
 }

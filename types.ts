@@ -245,9 +245,12 @@ export interface Settings {
   dataMode?: 'static' | 'dynamic' | null;
   /** Status given to the order lines of a strategy when it is launched; empty = no change. */
   launchStatus?: string;
+  /** Whether the Stock test tab is shown (default true). */
+  showStockTest?: boolean;
 }
 
 export interface SettingsUpdate {
+  showStockTest?: boolean;
   dataMode?: 'static' | 'dynamic';
   launchStatus?: string;
   apiUser?: string;
@@ -291,3 +294,27 @@ export interface PurchaseOrder {
 }
 
 export type NewPurchaseOrder = Omit<PurchaseOrder, 'id' | 'createdAt' | 'statusUpdate'>;
+
+// ---------- Stock test (OneStock GET /stock_export with details) ----------
+
+export interface StockCheckLine {
+  endpointId: string | null;
+  itemId: string | null;
+  quantity: number;
+  type: string | null;
+  etaStart: number | null;
+  etaEnd: number | null;
+  rawStock: number | null;
+  endpointReservation: number | null;
+  globalReservation: number | null;
+  buffers: { level: string; applied: number; type: string | null; value: number | null }[];
+  dispositions: { name: string; quantity: number }[];
+}
+
+export interface StockCheckResult {
+  requestName: string;
+  /** False when OneStock refused the calculation details (heavy request). */
+  withDetails: boolean;
+  stocks: StockCheckLine[];
+  endpointNames: Record<string, string>;
+}

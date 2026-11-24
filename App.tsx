@@ -11,6 +11,7 @@ import { HostContext, resolveHostContext, setManualContext } from './services/co
 import { createDataSource, DataMode, DEFAULT_MODE, loadSavedMode } from './services/dataSource';
 import { infoCatalog, simulate, toPurchaseOrders } from './services/simulation';
 import { PurchaseOrdersTab } from './components/PurchaseOrdersTab';
+import { StockTestTab } from './components/StockTestTab';
 import { date, money, t } from './services/i18n';
 
 const DEFAULT_CONFIG: OrchestrationConfig = {
@@ -52,7 +53,7 @@ function nextRun(schedule: { days: number[]; times: string[] }): string | undefi
   return undefined;
 }
 
-type Tab = 'strategies' | 'purchases' | 'prices' | 'settings';
+type Tab = 'strategies' | 'purchases' | 'prices' | 'stock' | 'settings';
 
 /** ?settings (or #settings) in the URL opens the settings tab directly. */
 const settingsRequested = () => {
@@ -106,6 +107,12 @@ const App: React.FC = () => {
     return () => {
       alive = false;
     };
+  }, [source, dataVersion]);
+
+  // Stock test tab: shown unless hidden in the settings.
+  const [showStockTest, setShowStockTest] = useState(true);
+  useEffect(() => {
+    source?.getSettings().then((s) => setShowStockTest(s.showStockTest !== false), () => setShowStockTest(true));
   }, [source, dataVersion]);
 
   // ---------- strategies (per site in dynamic mode) ----------
@@ -337,6 +344,7 @@ const App: React.FC = () => {
   const tabs: { id: Tab; label: string; discreet?: boolean }[] = [
     { id: 'strategies', label: t('Strategies') },
     { id: 'purchases', label: t('Supplier orders') },
+    ...(showStockTest ? [{ id: 'stock' as Tab, label: t('Stock test') }] : []),
     { id: 'prices', label: t('Supplier prices') },
     // Invisible until hovered (or selected).
     { id: 'settings', label: t('Settings'), discreet: true },
@@ -365,6 +373,7 @@ const App: React.FC = () => {
           </>
         )}
         {tab === 'purchases' && <PurchaseOrdersTab source={source} notice={launchNotice} />}
+        {tab === 'stock' && showStockTest && <StockTestTab source={source} items={data?.items ?? []} />}
         {tab === 'prices' && <PricingTab source={source} onDataChanged={reloadData} />}
         {tab === 'settings' && (
           <SettingsTab source={source} context={context ?? null} mode={source.mode} onModeChange={setMode} onContextChange={changeContext} onSaved={reloadData} />
