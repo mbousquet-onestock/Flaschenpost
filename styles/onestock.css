@@ -354,3 +354,22 @@ select.os-input { appearance: none; -webkit-appearance: none; padding-right: 36p
 .os-kv { display: grid; grid-template-columns: max-content 1fr; gap: 8px 24px; font: 400 14px/1.4 var(--font-family); }
 .os-kv dt { color: var(--text-secondary); }
 .os-kv dd { margin: 0; }
+
+/* ---------- Simulation results: one card per supplier ---------- */
+.res-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.res-kpis .os-kpi { padding-left: 12px; border-left: 1px solid var(--border-primary); }
+.res-kpis .os-kpi.main { border-left: 3px solid var(--border-brand); }
+.res-supplier.blocked { opacity: .6; }
+.res-head { display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--border-primary); background: var(--surface-page-background); }
+.res-head-main { display: flex; flex-direction: column; gap: 6px; min-width: 260px; flex: 1; }
+.res-franco { display: flex; flex-direction: column; gap: 4px; max-width: 420px; }
+.res-bar { height: 6px; border-radius: 3px; background: var(--surface-grey-transparent); overflow: hidden; }
+.res-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--surface-orange); }
+.res-bar.ok > span { background: var(--surface-green); }
+.res-amounts { display: grid; grid-template-columns: auto auto; gap: 4px 24px; margin: 0; align-content: start; font: 400 14px/1.4 var(--font-family); }
+.res-amounts dt { color: var(--text-secondary); text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+.res-amounts dd { margin: 0; text-align: right; }
+.res-amounts .total { font: 500 18px/1.4 var(--font-family); color: var(--text-primary); padding-top: 4px; border-top: 1px solid var(--border-primary); }
+.res-note { flex-basis: 100%; }
+.res-item { display: flex; flex-direction: column; min-width: 0; max-width: 520px; }
+.res-item > .os-body-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
