@@ -1,7 +1,9 @@
 // Stock test: stock of items per stock location with a OneStock stock query (GET /stock_export, with details),
 // to understand why a stock location has no available stock: raw stock − buffers − reservations − dispositions.
 import React, { useMemo, useState } from 'react';
-import type { ItemRef, StockCheckLine, StockCheckResult } from '../types';
+import type { Dataset, ItemRef, StockCheckLine, StockCheckResult } from '../types';
+import { carrierLabel, forbiddenFor } from '../services/delivery';
+import { featureLookup } from '../services/simulation';
 import type { DataSource } from '../services/dataSource';
 import { dateTime, num, t } from '../services/i18n';
 import { OsAlert, OsBadge, OsButton, OsField, OsLoading } from './os';
@@ -39,7 +41,9 @@ function explain(s: StockCheckLine): string | null {
   return `${parts.join(' ')} = ${num(s.quantity)}`;
 }
 
-export const StockTestTab: React.FC<{ source: DataSource; items: ItemRef[] }> = ({ source, items }) => {
+export const StockTestTab: React.FC<{ source: DataSource; items: ItemRef[]; data: Dataset | null }> = ({ source, items, data }) => {
+  const restrictions = data?.deliveryRestrictions ?? [];
+  const [features, setFeatures] = useState<Record<string, Record<string, string[]>>>({});
   const [requestName, setRequestName] = useState(() => readHistory()[0] ?? '');
   const [itemText, setItemText] = useState('');
   const [endpointText, setEndpointText] = useState('');
@@ -55,14 +59,40 @@ export const StockTestTab: React.FC<{ source: DataSource; items: ItemRef[] }> = 
     setError(null);
     setResult(null);
     try {
-      const r = await source.stockCheck(requestName.trim(), split(itemText), split(endpointText));
+      const itemIds = split(itemText);
+      const [r, f] = await Promise.all([
+        source.stockCheck(requestName.trim(), itemIds, split(endpointText)),
+        source.itemFeatures(itemIds, [...new Set(restrictions.flatMap((x) => Object.keys(x.itemFilter)))]).catch(() => ({})),
+      ]);
       remember(requestName.trim());
+      setFeatures(f);
       setResult(r);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setBusy(false);
     }
+  };
+
+  // Delivery restrictions of an item: features from OneStock, else those known from the loaded orders.
+  const lookup = useMemo(() => {
+    const base = data ? featureLookup(data) : (sku: string, f: string) => (f === 'sku' ? [sku] : []);
+    return (sku: string, f: string) => (features[sku]?.[f]?.length ? features[sku][f] : base(sku, f));
+  }, [data, features]);
+  const deliveryLine = (itemId: string) => {
+    if (!restrictions.length) return null;
+    const hits = forbiddenFor(itemId, restrictions, lookup);
+    if (!hits.length) return <span className="os-body-s t-green">{t('No delivery restriction for this item.')}</span>;
+    return (
+      <span className="os-row" style={{ gap: 4 }}>
+        <span className="os-body-s t-secondary">{t('Forbidden carriers:')}</span>
+        {hits.map((h, i) => {
+          const r = restrictions.find((x) => x.id === h.restrictionId)!;
+          const why = Object.entries(r.itemFilter).map(([f, cs]) => cs.map((c) => `${f} ${c.op} ${Array.isArray(c.value) ? c.value.join('|') : c.value}`).join(', ')).join(' ; ');
+          return <span key={i} title={t('Restriction {ids}', { ids: `${r.id} (${why})` })}><OsBadge text={carrierLabel(h.carrier)} color="red" secondary /></span>;
+        })}
+      </span>
+    );
   };
 
   // Results grouped by item, stock locations sorted by available quantity.
@@ -118,6 +148,7 @@ export const StockTestTab: React.FC<{ source: DataSource; items: ItemRef[] }> = 
               <div className="res-head-main">
                 <h3 className="os-title-s" style={{ margin: 0 }}>{itemName.get(itemId) ?? itemId}</h3>
                 <span className="os-body-s t-secondary">{itemId} · {t('Query {name}', { name: result!.requestName })}</span>
+                {deliveryLine(itemId)}
               </div>
               <dl className="res-amounts"><dt className="total">{t('Available')}</dt><dd className="total t-num">{num(total)}</dd></dl>
             </div>

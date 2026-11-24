@@ -373,7 +373,7 @@ const App: React.FC = () => {
           </>
         )}
         {tab === 'purchases' && <PurchaseOrdersTab source={source} notice={launchNotice} />}
-        {tab === 'stock' && showStockTest && <StockTestTab source={source} items={data?.items ?? []} />}
+        {tab === 'stock' && showStockTest && <StockTestTab source={source} items={data?.items ?? []} data={data} />}
         {tab === 'prices' && <PricingTab source={source} onDataChanged={reloadData} />}
         {tab === 'settings' && (
           <SettingsTab source={source} context={context ?? null} mode={source.mode} onModeChange={setMode} onContextChange={changeContext} onSaved={reloadData} />
