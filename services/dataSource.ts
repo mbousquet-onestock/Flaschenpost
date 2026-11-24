@@ -3,7 +3,7 @@
 //  - dynamic: OneStock API through the Vercel functions, settings and prices in the database.
 // VITE_DATA_MODE only sets the default mode of a site that has none saved.
 import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SCENARIOS, MOCK_SUPPLIERS } from '../constants';
-import type { Dataset, ItemRef, ItemWeight, OrderLine, StockCheckResult, NewPurchaseOrder, PurchaseOrder, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
+import type { Dataset, ItemRef, ItemWeight, OrderLine, NewPurchaseOrder, PurchaseOrder, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
 import { api } from './api';
 import type { HostContext } from './context';
 import { t } from './i18n';
@@ -38,8 +38,6 @@ export interface DataSource {
   deleteStrategy(id: string): Promise<void>;
   /** Saves the display order of the strategies. */
   reorderStrategies(ids: string[]): Promise<void>;
-  /** Stock of items per stock location with a OneStock stock query (dynamic source only). */
-  stockCheck(requestName: string, itemIds: string[], endpointIds: string[]): Promise<StockCheckResult>;
   /** Supplier purchase orders created by launches, newest first. */
   listPurchaseOrders(): Promise<PurchaseOrder[]>;
   /** Saves the purchase orders of a launch and moves their order lines to the status after launch (settings). */
@@ -60,7 +58,6 @@ type StaticStore = {
   /** Status of sample order lines changed by a launch. */
   lineStatusChanges?: Record<string, string>;
   launchStatus?: string;
-  showStockTest?: boolean;
   prices?: PriceTier[]; terms?: SupplierTerm[]; weights?: ItemWeight[]; lineStatuses?: string[]; strategies?: Scenario[]; localSuppliers?: { id: string; name: string }[] };
 
 function readStore(): StaticStore {
@@ -169,16 +166,11 @@ export const staticSource: DataSource = {
   },
   async getSettings() {
     const s = store();
-    return { apiUser: '', hasPassword: false, connected: false, tokenAt: null, lineStatuses: s.lineStatuses ?? STATIC_STATUSES, supplierType: 'supplier', launchStatus: s.launchStatus ?? '', showStockTest: s.showStockTest ?? true };
+    return { apiUser: '', hasPassword: false, connected: false, tokenAt: null, lineStatuses: s.lineStatuses ?? STATIC_STATUSES, supplierType: 'supplier', launchStatus: s.launchStatus ?? '' };
   },
   async saveSettings(u) {
     const s = store();
-    save({
-      ...s,
-      ...(u.lineStatuses ? { lineStatuses: u.lineStatuses } : {}),
-      ...(u.launchStatus !== undefined ? { launchStatus: u.launchStatus.trim() } : {}),
-      ...(u.showStockTest !== undefined ? { showStockTest: u.showStockTest } : {}),
-    });
+    save({ ...s, ...(u.lineStatuses ? { lineStatuses: u.lineStatuses } : {}), ...(u.launchStatus !== undefined ? { launchStatus: u.launchStatus.trim() } : {}) });
   },
   async testConnection() {
     throw new Error(t('The connection to OneStock is only available in the dynamic version.'));
@@ -193,9 +185,6 @@ export const staticSource: DataSource = {
   },
   async deleteStrategy(id) {
     save({ ...store(), strategies: (store().strategies ?? MOCK_SCENARIOS).filter((x) => x.id !== id) });
-  },
-  async stockCheck() {
-    throw new Error(t('The stock test is only available with the dynamic data source.'));
   },
   async reorderStrategies(ids) {
     const list = store().strategies ?? MOCK_SCENARIOS;
@@ -321,9 +310,6 @@ function dynamicSource(ctx: HostContext): DataSource {
     },
     async reorderStrategies(ids) {
       await api(ctx, 'strategies', { method: 'PATCH', body: { order: ids } });
-    },
-    async stockCheck(requestName, itemIds, endpointIds) {
-      return api<StockCheckResult>(ctx, 'stock-check', { method: 'POST', body: { requestName, itemIds, endpointIds } });
     },
     async listPurchaseOrders() {
       return (await api<{ purchaseOrders: PurchaseOrder[] }>(ctx, 'purchase-orders')).purchaseOrders;

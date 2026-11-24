@@ -18,12 +18,11 @@ export const GET = handle(async (req) => {
     supplierType: c?.supplier_type ?? 'supplier',
     dataMode: c?.data_mode ?? null,
     launchStatus: c?.launch_status ?? '',
-    showStockTest: c?.show_stock_test ?? true,
     updatedAt: c?.updated_at ?? null,
   });
 });
 
-type Put = { apiUser?: string; password?: string; lineStatuses?: string[]; supplierType?: string; dataMode?: 'static' | 'dynamic'; launchStatus?: string; showStockTest?: boolean };
+type Put = { apiUser?: string; password?: string; lineStatuses?: string[]; supplierType?: string; dataMode?: 'static' | 'dynamic'; launchStatus?: string };
 
 export const PUT = handle(async (req) => {
   requireAdmin(req);
@@ -33,7 +32,6 @@ export const PUT = handle(async (req) => {
     throw new HttpError(400, 'Invalid line statuses');
   if (b.supplierType !== undefined && !/^[\w-]{1,64}$/.test(b.supplierType)) throw new HttpError(400, 'Invalid supplier type');
   if (b.launchStatus !== undefined && (typeof b.launchStatus !== 'string' || b.launchStatus.length > 64)) throw new HttpError(400, 'Invalid launch status');
-  if (b.showStockTest !== undefined && typeof b.showStockTest !== 'boolean') throw new HttpError(400, 'Invalid showStockTest');
   if (b.dataMode !== undefined && !['static', 'dynamic'].includes(b.dataMode)) throw new HttpError(400, 'Invalid data mode');
   if (b.apiUser !== undefined && b.apiUser.length > 128) throw new HttpError(400, 'Invalid user');
 
@@ -42,15 +40,14 @@ export const PUT = handle(async (req) => {
   const pwd = b.password ? encrypt(b.password) : null;
   const userChanged = b.apiUser !== undefined || !!b.password;
   await db`
-    insert into tenant_config (env, site_id, api_user, api_password_enc, line_statuses, supplier_type, data_mode, launch_status, show_stock_test)
-    values (${t.env}, ${t.siteId}, ${b.apiUser ?? null}, ${pwd}, ${db.json(statuses ?? [])}, ${b.supplierType ?? 'supplier'}, ${b.dataMode ?? null}, ${b.launchStatus?.trim() || null}, ${b.showStockTest ?? null})
+    insert into tenant_config (env, site_id, api_user, api_password_enc, line_statuses, supplier_type, data_mode, launch_status)
+    values (${t.env}, ${t.siteId}, ${b.apiUser ?? null}, ${pwd}, ${db.json(statuses ?? [])}, ${b.supplierType ?? 'supplier'}, ${b.dataMode ?? null}, ${b.launchStatus?.trim() || null})
     on conflict (env, site_id) do update set
       api_user = coalesce(${b.apiUser ?? null}, tenant_config.api_user),
       api_password_enc = coalesce(${pwd}, tenant_config.api_password_enc),
       line_statuses = coalesce(${statuses ? db.json(statuses) : null}, tenant_config.line_statuses),
       supplier_type = coalesce(${b.supplierType ?? null}, tenant_config.supplier_type),
       data_mode = coalesce(${b.dataMode ?? null}, tenant_config.data_mode),
-      show_stock_test = coalesce(${b.showStockTest ?? null}, tenant_config.show_stock_test),
       launch_status = case when ${b.launchStatus !== undefined} then nullif(${b.launchStatus?.trim() ?? ''}, '') else tenant_config.launch_status end,
       token = case when ${userChanged} then null else tenant_config.token end,
       updated_at = now()`;

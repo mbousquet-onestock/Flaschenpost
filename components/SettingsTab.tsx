@@ -7,7 +7,7 @@ import type { Settings } from '../types';
 import type { HostContext } from '../services/context';
 import { DataMode, DataSource, siteSettings, staticSource } from '../services/dataSource';
 import { ApiError, getAdminKey, setAdminKey } from '../services/api';
-import { OsAlert, OsBadge, OsButton, OsField, OsIcon, OsSwitch, OsTag } from './os';
+import { OsAlert, OsBadge, OsButton, OsField, OsIcon, OsTag } from './os';
 import { date, dateTime, t } from '../services/i18n';
 
 const fmt = (iso: string | null) => (iso ? dateTime(new Date(iso)) : '—');
@@ -46,7 +46,6 @@ export const SettingsTab: React.FC<{
   const [newStatus, setNewStatus] = useState('');
   const [supplierType, setSupplierType] = useState('supplier');
   const [launchStatus, setLaunchStatus] = useState('');
-  const [showStockTest, setShowStockTest] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -60,7 +59,6 @@ export const SettingsTab: React.FC<{
         if (selectedMode === 'dynamic') {
           setStatuses(s.lineStatuses);
           setLaunchStatus(s.launchStatus ?? '');
-          setShowStockTest(s.showStockTest !== false);
         }
       } catch (e) {
         setApiAvailable(false);
@@ -72,7 +70,6 @@ export const SettingsTab: React.FC<{
       const st = await staticSource.getSettings();
       setStatuses(st.lineStatuses);
       setLaunchStatus(st.launchStatus ?? '');
-      setShowStockTest(st.showStockTest !== false);
     }
   };
 
@@ -139,8 +136,8 @@ export const SettingsTab: React.FC<{
     run(
       () =>
         selectedMode === 'dynamic' && site
-          ? site.save({ lineStatuses: statuses, supplierType: supplierType.trim() || 'supplier', launchStatus: launchStatus.trim(), showStockTest })
-          : staticSource.saveSettings({ lineStatuses: statuses, launchStatus: launchStatus.trim(), showStockTest }),
+          ? site.save({ lineStatuses: statuses, supplierType: supplierType.trim() || 'supplier', launchStatus: launchStatus.trim() })
+          : staticSource.saveSettings({ lineStatuses: statuses, launchStatus: launchStatus.trim() }),
       t('Settings saved.'),
     );
 
@@ -248,10 +245,6 @@ export const SettingsTab: React.FC<{
             <OsButton kind="secondary" icon="add" onClick={addStatus} disabled={!newStatus.trim()}>{t('Add')}</OsButton>
           </div>
         </OsField>
-        <div>
-          <OsSwitch checked={showStockTest} onChange={setShowStockTest} label={t('Show the Stock test tab')} />
-          <p className="os-hint" style={{ margin: '0 0 0 40px' }}>{t('Tab to check the stock of items per stock location with a OneStock stock query.')}</p>
-        </div>
         <OsField label={t('Order line status after launch')} htmlFor="st-launch"
           hint={t('When a strategy is launched, its order lines move to this status (e.g. supplier_ordered). Empty: the statuses do not change.')}>
           <input id="st-launch" className="os-input" style={{ maxWidth: 280 }} placeholder={t('No change')} value={launchStatus} onChange={(e) => setLaunchStatus(e.target.value)} />
