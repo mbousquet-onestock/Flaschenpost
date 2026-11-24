@@ -3,7 +3,6 @@ import { Dataset, OrchestrationConfig } from '../types';
 import { GroupedResult, simulate, SimulationResult } from '../services/simulation';
 import { OsAlert, OsBadge, OsButton, OsIcon } from './os';
 import { money, num, t } from '../services/i18n';
-import { carrierLabel, DeliveryIssue } from '../services/delivery';
 
 const eur = (n: number) => money(n);
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
@@ -145,78 +144,6 @@ const SupplierHeader: React.FC<{ g: SupplierGroup; sim: SimulationResult; open: 
   );
 };
 
-/** Orders whose planned carrier is forbidden for some items (delivery restrictions), with the proposal for each. */
-const DeliveryIssues: React.FC<{ issues: DeliveryIssue[] }> = ({ issues }) => {
-  const [open, setOpen] = useState(issues.length <= 10);
-  const counts = {
-    switch: issues.filter((i) => i.proposal.type === 'switch').length,
-    split: issues.filter((i) => i.proposal.type === 'split').length,
-    none: issues.filter((i) => i.proposal.type === 'none').length,
-  };
-  return (
-    <section className="os-card flush" aria-label={t('Delivery restrictions')}>
-      <div className="res-head">
-        <div className="res-head-main">
-          <div className="os-row" style={{ gap: 8 }}>
-            <OsButton kind="tertiary" round icon={open ? 'chevron-down' : 'chevron-right'} aria-expanded={open}
-              aria-label={open ? t('Hide the items') : t('Show the items')} onClick={() => setOpen(!open)} />
-            <h3 className="os-title-s" style={{ margin: 0 }}>{t('Delivery restrictions')}</h3>
-            <OsBadge text={t('{count} order(s)', { count: issues.length })} color={counts.none ? 'red' : 'orange'} icon="warning-outline" />
-          </div>
-          <span className="os-label-s t-secondary">
-            {t('The planned carrier of these orders is forbidden for some of their items.')}{' '}
-            {t('{switch} with another carrier, {split} in several parcels, {none} without an allowed carrier.', counts)}
-          </span>
-        </div>
-      </div>
-      {open && (
-        <div className="os-table-wrap">
-          <table className="os-table">
-            <thead>
-              <tr>
-                <th>{t('Customer order')}</th>
-                <th>{t('Planned carrier')}</th>
-                <th>{t('Forbidden items')}</th>
-                <th>{t('Proposal')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {issues.map((i) => (
-                <tr key={i.orderId}>
-                  <td className="os-body-l">{i.orderId}</td>
-                  <td><span className="t-red">{carrierLabel(i.planned)}</span></td>
-                  <td>
-                    {i.items.filter((x) => x.forbidden).map((x) => (
-                      <div key={x.sku} title={t('Restriction {ids}', { ids: x.restrictionIds.join(', ') })}>{x.sku}</div>
-                    ))}
-                  </td>
-                  <td>
-                    {i.proposal.type === 'switch' && (
-                      <OsBadge text={t('Ship the whole order with {carrier}', { carrier: carrierLabel(i.proposal.carrier) })} color="green" icon="truck" />
-                    )}
-                    {i.proposal.type !== 'switch' && (
-                      <div className="os-col" style={{ gap: 4 }}>
-                        {i.proposal.parcels.map((p, n) => (
-                          <span key={n} className="os-body-s">
-                            <OsBadge text={t('Parcel {n}', { n: n + 1 })} color="blue" secondary /> {carrierLabel(p.carrier)} : {p.skus.join(', ')}
-                          </span>
-                        ))}
-                        {i.proposal.type === 'none' && (
-                          <OsBadge text={t('No allowed carrier for {skus}', { skus: i.proposal.skus.join(', ') })} color="red" icon="close" />
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-};
-
 export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ strategyName, config, data, onNext, launching }) => {
   const sim = useMemo(() => simulate(data, config), [data, config]);
   const groups = useMemo(() => groupBySupplier(sim, config), [sim, config]);
@@ -276,8 +203,6 @@ export const ResultsVisualization: React.FC<ResultsVisualizationProps> = ({ stra
           <OsAlert color="orange">{t('Blocking mode is active: orders whose supplier does not reach the Franco are excluded.')}</OsAlert>
         )}
       </div>
-
-      {sim.deliveryIssues.length > 0 && <DeliveryIssues issues={sim.deliveryIssues} />}
 
       {results.length === 0 && <div className="os-card os-empty">{t('No order matches the selected criteria.')}</div>}
 

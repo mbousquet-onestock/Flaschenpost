@@ -3,10 +3,10 @@
 //  - dynamic: OneStock API through the Vercel functions, settings and prices in the database.
 // VITE_DATA_MODE only sets the default mode of a site that has none saved.
 import { MOCK_ORDERS, MOCK_PRODUCTS, MOCK_SCENARIOS, MOCK_SUPPLIERS } from '../constants';
-import type { DeliveryRestriction, Dataset, ItemRef, ItemWeight, OrderLine, StockCheckResult, NewPurchaseOrder, PurchaseOrder, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
+import type { Dataset, ItemRef, ItemWeight, OrderLine, StockCheckResult, NewPurchaseOrder, PurchaseOrder, PriceTier, Scenario, Settings, SettingsUpdate, SupplierRef, SupplierTerm } from '../types';
 import { api } from './api';
 import type { HostContext } from './context';
-import { LANG, t } from './i18n';
+import { t } from './i18n';
 
 export type DataMode = 'static' | 'dynamic';
 export const DEFAULT_MODE: DataMode = import.meta.env.VITE_DATA_MODE === 'dynamic' ? 'dynamic' : 'static';
@@ -40,8 +40,6 @@ export interface DataSource {
   reorderStrategies(ids: string[]): Promise<void>;
   /** Stock of items per stock location with a OneStock stock query (dynamic source only). */
   stockCheck(requestName: string, itemIds: string[], endpointIds: string[]): Promise<StockCheckResult>;
-  /** Item features from OneStock (dynamic source; empty for the static one). */
-  itemFeatures(itemIds: string[], features: string[]): Promise<Record<string, Record<string, string[]>>>;
   /** Supplier purchase orders created by launches, newest first. */
   listPurchaseOrders(): Promise<PurchaseOrder[]>;
   /** Saves the purchase orders of a launch and moves their order lines to the status after launch (settings). */
@@ -114,7 +112,6 @@ export const staticSource: DataSource = {
       suppliers: (await this.listSuppliers()).suppliers,
       prices: s.prices ?? defaultPrices(),
       weights: s.weights ?? defaultWeights(),
-      deliveryRestrictions: SAMPLE_RESTRICTIONS,
       statusOptions: statuses,
       salesChannels: [{ id: 'E-commerce', name: 'E-commerce France' }, { id: 'Retail', name: 'Retail stores' }],
     };
@@ -200,9 +197,6 @@ export const staticSource: DataSource = {
   async stockCheck() {
     throw new Error(t('The stock test is only available with the dynamic data source.'));
   },
-  async itemFeatures() {
-    return {};
-  },
   async reorderStrategies(ids) {
     const list = store().strategies ?? MOCK_SCENARIOS;
     const rank = new Map(ids.map((id, i) => [id, i]));
@@ -237,12 +231,6 @@ export const staticSource: DataSource = {
   },
 };
 
-/** Sample delivery restrictions of the static data (carriers of the sample orders: chronopost 18, colissimo standard). */
-const SAMPLE_RESTRICTIONS: DeliveryRestriction[] = [
-  { id: 'sample-heavy', itemFilter: { weight: [{ op: 'gt', value: 1.5 }] }, carriers: [{ name: 'colissimo', option: 'standard' }] },
-  { id: 'sample-sku', itemFilter: { sku: [{ op: 'eq', value: 'WINE-003' }] }, carriers: [{ name: 'chronopost', option: '18' }] },
-];
-
 /** Sample "information" fields of the static data. */
 function sampleInfo(i: number): OrderLine['info'] {
   return {
@@ -274,17 +262,9 @@ function dynamicSource(ctx: HostContext): DataSource {
         // Optional: without it, the channels found in the orders are offered.
         api<{ salesChannels: { id: string; name: string }[] }>(ctx, 'sales-channels').then((r) => r.salesChannels, () => []),
       ]);
-      // Delivery restrictions (optional) and the features of the ordered items they test.
-      const deliveryRestrictions = await api<{ restrictions: DeliveryRestriction[] }>(ctx, 'delivery-restrictions').then((r) => r.restrictions, () => []);
-      const featureNames = [...new Set(deliveryRestrictions.flatMap((r) => Object.keys(r.itemFilter)))];
-      const skus = [...new Set(orders.lines.map((l) => l.sku))].slice(0, 1000);
-      const itemFeatures = featureNames.length && skus.length
-        ? await api<{ features: Record<string, Record<string, string[]>> }>(ctx, 'item-features', { method: 'POST', body: { itemIds: skus, features: featureNames, lang: LANG } })
-            .then((r) => r.features, () => ({}))
-        : {};
       return {
         lines: orders.lines, truncated: orders.truncated, suppliers, prices: prices.prices, weights: prices.weights, items,
-        statusOptions: settings.lineStatuses, salesChannels, deliveryRestrictions, itemFeatures,
+        statusOptions: settings.lineStatuses, salesChannels,
       };
     },
     async listSuppliers() {
@@ -341,10 +321,6 @@ function dynamicSource(ctx: HostContext): DataSource {
     },
     async reorderStrategies(ids) {
       await api(ctx, 'strategies', { method: 'PATCH', body: { order: ids } });
-    },
-    async itemFeatures(itemIds, features) {
-      if (!itemIds.length || !features.length) return {};
-      return (await api<{ features: Record<string, Record<string, string[]>> }>(ctx, 'item-features', { method: 'POST', body: { itemIds, features, lang: LANG } })).features;
     },
     async stockCheck(requestName, itemIds, endpointIds) {
       return api<StockCheckResult>(ctx, 'stock-check', { method: 'POST', body: { requestName, itemIds, endpointIds } });

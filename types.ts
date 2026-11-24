@@ -231,9 +231,6 @@ export interface Dataset {
   salesChannels?: { id: string; name: string }[];
   /** Item weights in kg, for shipping fees per kg. */
   weights?: ItemWeight[];
-  /** Delivery restrictions of the site and the item features they test. */
-  deliveryRestrictions?: DeliveryRestriction[];
-  itemFeatures?: Record<string, Record<string, string[]>>;
   truncated?: boolean;
 }
 
@@ -320,25 +317,4 @@ export interface StockCheckResult {
   withDetails: boolean;
   stocks: StockCheckLine[];
   endpointNames: Record<string, string>;
-}
-
-// ---------- Delivery restrictions (OneStock GET /delivery_restrictions) ----------
-
-export interface Carrier {
-  name: string;
-  /** Service of the carrier; empty = every service. */
-  option?: string;
-}
-
-/** Condition on an item feature, e.g. weight gt 30. */
-export interface FeatureCondition {
-  op: string;
-  value: string | number | (string | number)[];
-}
-
-/** Carriers that cannot ship the items matching the filter (all feature conditions met). */
-export interface DeliveryRestriction {
-  id: string;
-  itemFilter: Record<string, FeatureCondition[]>;
-  carriers: Carrier[];
 }

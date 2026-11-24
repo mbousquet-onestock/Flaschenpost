@@ -4,7 +4,6 @@
 //    (dearer unit price, but franco reached or lower shipping fees) while the total purchase cost
 //    (goods + shipping fees) decreases. When a supplier's franco is not reached,
 // its shipping fee is added: a fixed amount, an amount per kg (item weights) or an amount per unit.
-import { DeliveryIssue, deliveryIssues, FeatureLookup } from './delivery';
 import type { Dataset, InfoCondition, InfoSource, InfoValue, NewPurchaseOrder, OrchestrationConfig, OrderConditions, StockConditions, SupplierRef, OrderDateFilter, OrderLine, PriceTier, PurchaseOrderSource, ShippingMode } from '../types';
 
 /** Shipping fee of a supplier whose franco is not reached. */
@@ -51,8 +50,6 @@ export interface SimulationResult {
   baselineAmount: number;
   /** Number of SKUs moved away from their cheapest supplier by the optimisation. */
   reassigned: number;
-  /** Orders whose planned carrier is forbidden for one of their items, with a proposal. */
-  deliveryIssues: DeliveryIssue[];
 }
 
 /** Unit price for a quantity: the tier with the highest minimum quantity reached, else the lowest tier. */
@@ -328,7 +325,6 @@ export function simulate(data: Dataset, config: OrchestrationConfig): Simulation
     totalPurchaseAmount,
     shipping,
     baselineAmount: baseline.total,
-    deliveryIssues: deliveryIssues(lines, data.deliveryRestrictions ?? [], featureLookup(data)),
     reassigned: results.filter((r) => r.cheapest).length,
   };
 }
@@ -408,16 +404,4 @@ export function infoCatalog(lines: OrderLine[]): Record<InfoSource, Map<string, 
         cat[source].set(k, set);
       }
   return cat;
-}
-
-/** Item features for the delivery restrictions: OneStock features, else the item ID for "sku" and the weight entered here. */
-export function featureLookup(data: Dataset): FeatureLookup {
-  const weights = new Map((data.weights ?? []).filter((w) => w.weightKg !== null).map((w) => [w.itemId, String(w.weightKg)]));
-  return (sku, feature) => {
-    const v = data.itemFeatures?.[sku]?.[feature];
-    if (v && v.length) return v;
-    if (feature === 'sku' || feature === 'id' || feature === 'item_id') return [sku];
-    if (feature === 'weight' && weights.has(sku)) return [weights.get(sku)!];
-    return [];
-  };
 }
