@@ -410,16 +410,13 @@ export function infoCatalog(lines: OrderLine[]): Record<InfoSource, Map<string, 
   return cat;
 }
 
-/** Features that designate the item ID in a delivery restriction (OneStock: sku = item ID). */
-export const ID_FEATURES = ['sku', 'id', 'item_id'];
-
-/** Item features for the delivery restrictions: "sku" is the item ID; other features come from OneStock, else the weight entered here. */
+/** Item features for the delivery restrictions: OneStock features, else the item ID for "sku" and the weight entered here. */
 export function featureLookup(data: Dataset): FeatureLookup {
   const weights = new Map((data.weights ?? []).filter((w) => w.weightKg !== null).map((w) => [w.itemId, String(w.weightKg)]));
   return (sku, feature) => {
-    if (ID_FEATURES.includes(feature)) return [sku];
     const v = data.itemFeatures?.[sku]?.[feature];
     if (v && v.length) return v;
+    if (feature === 'sku' || feature === 'id' || feature === 'item_id') return [sku];
     if (feature === 'weight' && weights.has(sku)) return [weights.get(sku)!];
     return [];
   };

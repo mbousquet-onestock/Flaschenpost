@@ -7,7 +7,6 @@ import type { DeliveryRestriction, Dataset, ItemRef, ItemWeight, OrderLine, Stoc
 import { api } from './api';
 import type { HostContext } from './context';
 import { LANG, t } from './i18n';
-import { ID_FEATURES } from './simulation';
 
 export type DataMode = 'static' | 'dynamic';
 export const DEFAULT_MODE: DataMode = import.meta.env.VITE_DATA_MODE === 'dynamic' ? 'dynamic' : 'static';
@@ -277,8 +276,7 @@ function dynamicSource(ctx: HostContext): DataSource {
       ]);
       // Delivery restrictions (optional) and the features of the ordered items they test.
       const deliveryRestrictions = await api<{ restrictions: DeliveryRestriction[] }>(ctx, 'delivery-restrictions').then((r) => r.restrictions, () => []);
-      // "sku" is the item ID: only the other features are read from OneStock.
-      const featureNames = [...new Set(deliveryRestrictions.flatMap((r) => Object.keys(r.itemFilter)))].filter((f) => !ID_FEATURES.includes(f));
+      const featureNames = [...new Set(deliveryRestrictions.flatMap((r) => Object.keys(r.itemFilter)))];
       const skus = [...new Set(orders.lines.map((l) => l.sku))].slice(0, 1000);
       const itemFeatures = featureNames.length && skus.length
         ? await api<{ features: Record<string, Record<string, string[]>> }>(ctx, 'item-features', { method: 'POST', body: { itemIds: skus, features: featureNames, lang: LANG } })

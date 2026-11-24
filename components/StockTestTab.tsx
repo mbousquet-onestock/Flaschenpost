@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Dataset, ItemRef, StockCheckLine, StockCheckResult } from '../types';
 import { carrierLabel, forbiddenFor } from '../services/delivery';
-import { featureLookup, ID_FEATURES } from '../services/simulation';
+import { featureLookup } from '../services/simulation';
 import type { DataSource } from '../services/dataSource';
 import { dateTime, num, t } from '../services/i18n';
 import { OsAlert, OsBadge, OsButton, OsField, OsLoading } from './os';
@@ -62,7 +62,7 @@ export const StockTestTab: React.FC<{ source: DataSource; items: ItemRef[]; data
       const itemIds = split(itemText);
       const [r, f] = await Promise.all([
         source.stockCheck(requestName.trim(), itemIds, split(endpointText)),
-        source.itemFeatures(itemIds, [...new Set(restrictions.flatMap((x) => Object.keys(x.itemFilter)))].filter((f) => !ID_FEATURES.includes(f))).catch(() => ({})),
+        source.itemFeatures(itemIds, [...new Set(restrictions.flatMap((x) => Object.keys(x.itemFilter)))]).catch(() => ({})),
       ]);
       remember(requestName.trim());
       setFeatures(f);
@@ -77,7 +77,7 @@ export const StockTestTab: React.FC<{ source: DataSource; items: ItemRef[]; data
   // Delivery restrictions of an item: features from OneStock, else those known from the loaded orders.
   const lookup = useMemo(() => {
     const base = data ? featureLookup(data) : (sku: string, f: string) => (f === 'sku' ? [sku] : []);
-    return (sku: string, f: string) => (ID_FEATURES.includes(f) ? [sku] : features[sku]?.[f]?.length ? features[sku][f] : base(sku, f));
+    return (sku: string, f: string) => (features[sku]?.[f]?.length ? features[sku][f] : base(sku, f));
   }, [data, features]);
   const deliveryLine = (itemId: string) => {
     if (!restrictions.length) return null;
